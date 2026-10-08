@@ -255,7 +255,7 @@ def main():
     val_dataset = BraTSDataSet(
         args.data_dir,
         args.val_list,
-        max_iters=args.num_steps,
+        max_iters=None,
         crop_size=input_size,
         scale=False,
         mirror=False
@@ -321,7 +321,7 @@ def main():
                 torch.save(checkpoint, osp.join(args.snapshot_dir, 'last.pth'))
 
             # val and identify the best modality for each tumor
-            if not args.train_only and i_iter % args.val_pred_every == 0:
+            if not args.train_only and i_iter != 0 and i_iter % args.val_pred_every == 0:
                 print('validate ...')
                 val_start = timeit.default_timer()
                 # kd_lr = adjust_learning_rate(kd_optim, i_iter, args.learning_rate, args.num_steps, args.power)
