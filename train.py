@@ -39,33 +39,33 @@ def get_arguments():
     parser = argparse.ArgumentParser(description="Shared-Specific model for 3D Medical Image Segmentation.")
 
     parser.add_argument("--data_dir", type=str, default='./datalist/')
-    parser.add_argument("--train_list", type=str, default='BraTS20/BraTS20_train.csv')
-    parser.add_argument("--val_list", type=str, default='BraTS20_val.csv')
-    parser.add_argument("--snapshot_dir", type=str, default='snapshots/example/')
-    parser.add_argument("--reload_path", type=str, default='snapshots/example/last.pth')
+    parser.add_argument("--train_list", type=str, default='BraTS18/BraTS18_metaTrain.csv')
+    parser.add_argument("--val_list", type=str, default='BraTS18/BraTS18_metaVal.csv')
+    parser.add_argument("--snapshot_dir", type=str, default='snapshots/BraTS18_MetaKD_115k/')
+    parser.add_argument("--reload_path", type=str, default='snapshots/BraTS18_warmup/final.pth')
     parser.add_argument("--reload_from_checkpoint", type=str2bool, default=False)
     parser.add_argument("--input_size", type=str, default='80,160,160')
-    parser.add_argument("--batch_size", type=int, default=1)
+    parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--num_gpus", type=int, default=1)
     parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument("--num_steps", type=int, default=40000)
+    parser.add_argument("--num_steps", type=int, default=115000)
     parser.add_argument("--start_iters", type=int, default=0)
     parser.add_argument("--val_pred_every", type=int, default=100)
-    parser.add_argument("--learning_rate", type=float, default=1e-4)
+    parser.add_argument("--learning_rate", type=float, default=1e-2)
     parser.add_argument("--num_classes", type=int, default=3)
-    parser.add_argument("--num_workers", type=int, default=1)
+    parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--weight_std", type=str2bool, default=True)
-    parser.add_argument("--momentum", type=float, default=0.9)
+    parser.add_argument("--momentum", type=float, default=0.99)
     parser.add_argument("--power", type=float, default=0.9)
-    parser.add_argument("--weight_decay", type=float, default=0.0005)
+    parser.add_argument("--weight_decay", type=float, default=5e-5)
     parser.add_argument("--ignore_label", type=int, default=255)
     parser.add_argument("--is_training", action="store_true")
-    parser.add_argument("--random_mirror", type=str2bool, default=False)
-    parser.add_argument("--random_scale", type=str2bool, default=False)
+    parser.add_argument("--random_mirror", type=str2bool, default=True)
+    parser.add_argument("--random_scale", type=str2bool, default=True)
     parser.add_argument("--random_seed", type=int, default=999)
 
-    parser.add_argument("--norm_cfg", type=str, default='IN')  # normalization
-    parser.add_argument("--activation_cfg", type=str, default='LeakyReLU')  # activation
+    parser.add_argument("--norm_cfg", type=str, default='IN')  # Instance Normalization
+    parser.add_argument("--activation_cfg", type=str, default='LeakyReLU')
     parser.add_argument("--train_only", action="store_true")
     parser.add_argument("--mode", type=str, default='0,1,2,3')
 
@@ -227,22 +227,50 @@ def main():
             print('File does not exist in the reload path: {}'.format(args.reload_path))
             exit(0)
 
-        loss_D = loss.DiceLoss4BraTS().to(device)
-        loss_BCE = loss.BCELoss4BraTS().to(device)
+    loss_D = loss.DiceLoss4BraTS().to(device)
+    loss_BCE = loss.BCELoss4BraTS().to(device)
 
-        print('current mode:', args.mode)
+    print('current mode:', args.mode)
 
-        if not os.path.exists(args.snapshot_dir):
-            os.makedirs(args.snapshot_dir)
+    if not os.path.exists(args.snapshot_dir):
+        os.makedirs(args.snapshot_dir)
 
-        trainloader, train_sampler = engine.get_train_loader(BraTSDataSet(args.data_dir, args.train_list, max_iters=args.num_steps * args.batch_size, crop_size=input_size,
-                        scale=args.random_scale, mirror=args.random_mirror), collate_fn=my_collate)
-        # valloader, val_sampler = engine.get_test_loader(BraTSValDataSet(args.data_dir, args.val_list))
-        valloader, val_sampler = engine.get_train_loader(BraTSDataSet(args.data_dir, args.val_list, max_iters=20, crop_size=input_size,
-                        scale=args.random_scale, mirror=args.random_mirror), batch_size=1, collate_fn=my_collate)
+    train_dataset = BraTSDataSet(
+        args.data_dir,
+        args.train_list,
+        max_iters=args.num_steps * args.batch_size,
+        crop_size=input_size,
+        scale=args.random_scale,
+        mirror=args.random_mirror
+    )
+    trainloader = torch.utils.data.DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        collate_fn=my_collate
+    )
 
-        val_Dice_best = -999999
-        for i_iter, batch in enumerate(trainloader):
+    val_dataset = BraTSDataSet(
+        args.data_dir,
+        args.val_list,
+        max_iters=args.num_steps,
+        crop_size=input_size,
+        scale=False,
+        mirror=False
+    )
+    valloader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        collate_fn=my_collate
+    )
+
+    val_Dice_best = -999999
+    for i_iter, batch in enumerate(trainloader):
             i_iter += args.start_iters
             images = torch.from_numpy(batch['image']).cuda()
             labels = torch.from_numpy(batch['label']).cuda()
@@ -298,11 +326,24 @@ def main():
                 val_start = timeit.default_timer()
                 # kd_lr = adjust_learning_rate(kd_optim, i_iter, args.learning_rate, args.num_steps, args.power)
                 val_ET, val_WT, val_TC = validate(args, input_size, model, valloader, args.num_classes, args.mode, loss_D, loss_BCE, kd_optim)
+                val_avg_Dice = (val_ET + val_WT + val_TC) / 3.0
                 if (args.local_rank == 0):
                     writer.add_scalar('Val_ET_Dice', val_ET, i_iter)
                     writer.add_scalar('Val_WT_Dice', val_WT, i_iter)
                     writer.add_scalar('Val_TC_Dice', val_TC, i_iter)
-                    print('Validate iter = {}, ET = {:.2}, WT = {:.2}, TC = {:.2}'.format(i_iter, val_ET, val_WT, val_TC))
+                    writer.add_scalar('Val_Avg_Dice', val_avg_Dice, i_iter)
+                    print('Validate iter = {}, ET = {:.4f}, WT = {:.4f}, TC = {:.4f}, Avg = {:.4f}'.format(i_iter, val_ET, val_WT, val_TC, val_avg_Dice))
+                    if val_avg_Dice > val_Dice_best:
+                        val_Dice_best = val_avg_Dice
+                        print('>>> New Best Model saved with Avg Dice: {:.4f} <<<'.format(val_Dice_best))
+                        best_checkpoint = {
+                            'model': model,
+                            'optimizer': optimizer,
+                            'kd_optim': kd_optim,
+                            'iter': i_iter,
+                            'best_val_dice': val_Dice_best
+                        }
+                        torch.save(best_checkpoint, osp.join(args.snapshot_dir, 'best_model.pth'))
                 val_end = timeit.default_timer()
                 print('val one iter', val_end - val_start, 'seconds')
 
