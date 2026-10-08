@@ -1,0 +1,24 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+# Core Deep Learning (CUDA 11.8)
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Medical Imaging & Data IO
+nibabel>=3.2.0
+SimpleITK>=2.0.0
+pydicom>=2.1.0
+
+# Scientific Computing & Processing
+numpy>=1.20.0
+scipy>=1.7.0
+scikit-learn>=0.24.0
+scikit-image>=0.18.0
+
+# Data Augmentation & Batch Processing
+batchgenerators>=0.21
+
+# Visualization & Logging
+tensorboardX>=2.2
+matplotlib>=3.3.0
+tqdm>=4.60.0
