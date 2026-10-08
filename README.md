@@ -68,7 +68,7 @@ Available Modalities (e.g., Flair + T1) ──> [Shared 3D Encoder] ──> [Fea
 
 ### 1. Environment Setup
 
-Clone this repository and install the dependencies:
+Clone this repository and install dependencies:
 ```bash
 git clone https://github.com/XiaoSha59/finalCV_metaDK.git
 cd finalCV_metaDK
@@ -81,8 +81,6 @@ source .venv/bin/activate
 
 pip install -r requirements.txt
 ```
-
-*(If running on GPU, ensure PyTorch with CUDA is installed, e.g., `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118`)*
 
 ---
 
@@ -151,7 +149,6 @@ python eval_all_modalities.py --restore_from=snapshots/BraTS18_MetaKD_115k/final
 ```
 
 #### Expected Evaluation Table:
-The script automatically evaluates and displays the Dice scores:
 ```text
 -----------------------------------------------------------------------------------------------
 Modalities             | Enhancing Tumor (ET) | Tumor Core (TC)  | Whole Tumor (WT) | Average   
@@ -163,6 +160,88 @@ Flair only             |              47.37%  |          73.01%  |          89.1
 ...
 -----------------------------------------------------------------------------------------------
 ```
+
+---
+
+## ☁️ Cloud & Remote Training Instructions
+
+### 🌟 Training on Google Cloud Platform (GCP - Linux VM)
+
+1. **SSH into your GCP VM with GPU:**
+   ```bash
+   gcloud compute ssh <YOUR_VM_NAME> --zone=<YOUR_ZONE>
+   ```
+
+2. **Verify NVIDIA GPU & CUDA:**
+   ```bash
+   nvidia-smi
+   ```
+
+3. **Clone and Install:**
+   ```bash
+   git clone https://github.com/XiaoSha59/finalCV_metaDK.git
+   cd finalCV_metaDK
+
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+   pip install -r requirements.txt
+   ```
+
+4. **Run in Background with `tmux` (Prevents SSH disconnection from stopping training):**
+   ```bash
+   tmux new -s metakd
+   # Run Stage 1 or Stage 2 python train.py command here
+   # Detach tmux: Press Ctrl+B, then D
+   # Re-attach anytime: tmux attach -t metakd
+   ```
+
+5. **Auto-Recovery if Preemptible VM restarts:**
+   Simply add `--reload_from_checkpoint=True --reload_path=snapshots/BraTS18_MetaKD_115k/last.pth` to resume from the exact last saved iteration!
+
+---
+
+### 🌟 Training on Kaggle (P100 / T4 GPU)
+
+1. **Create a new Kaggle Notebook:**
+   * Go to **Settings** $\rightarrow$ **Accelerator** $\rightarrow$ Select **GPU P100** or **GPU T4 x2**.
+   * Go to **Data** $\rightarrow$ **Add Input** $\rightarrow$ Search and add **BraTS 2018 Dataset**.
+
+2. **Setup and Symlink Data:**
+   ```python
+   # Cell 1: Clone and install
+   !git clone https://github.com/XiaoSha59/finalCV_metaDK.git
+   %cd finalCV_metaDK
+   !pip install -r requirements.txt
+   
+   # Cell 2: Symlink dataset to data/BraTS2018/
+   !mkdir -p data/BraTS2018
+   !ln -s /kaggle/input/brats-2018/MICCAI_BraTS_2018_Data_Training data/BraTS2018/MICCAI_BraTS_2018_Data_Training
+   !python split_data.py
+   ```
+
+3. **Train and Save to `/kaggle/working/`:**
+   ```python
+   # Cell 3: Stage 1 Warmup
+   !python train.py \
+     --snapshot_dir=/kaggle/working/snapshots/BraTS18_warmup/ \
+     --input_size=80,160,160 \
+     --batch_size=2 \
+     --num_steps=80000 \
+     --val_pred_every=500 \
+     --learning_rate=1e-2 \
+     --num_classes=3 \
+     --train_list=BraTS18/BraTS18_metaTrain.csv \
+     --val_list=BraTS18/BraTS18_metaVal.csv \
+     --weight_std=True \
+     --reload_from_checkpoint=False
+   ```
+
+4. **Evaluate directly inside Kaggle Notebook:**
+   ```python
+   # Cell 4: 15-Modality Evaluation
+   !python eval_all_modalities.py --restore_from=/kaggle/working/snapshots/BraTS18_MetaKD_115k/final.pth
+   ```
 
 ---
 
