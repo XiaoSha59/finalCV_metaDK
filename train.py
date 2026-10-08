@@ -68,6 +68,7 @@ def get_arguments():
     parser.add_argument("--activation_cfg", type=str, default='LeakyReLU')
     parser.add_argument("--train_only", action="store_true")
     parser.add_argument("--mode", type=str, default='0,1,2,3')
+    parser.add_argument("--alpha", type=float, default=0.1)
 
     return parser
 
@@ -270,7 +271,10 @@ def main():
     )
 
     val_Dice_best = -999999
+    kdLoss_wt = args.alpha
+
     for i_iter, batch in enumerate(trainloader):
+            start = timeit.default_timer()
             i_iter += args.start_iters
             images = torch.from_numpy(batch['image']).cuda()
             labels = torch.from_numpy(batch['label']).cuda()
@@ -284,7 +288,6 @@ def main():
             term_seg_Dice = loss_D.forward(preds_seg, labels)
             term_seg_BCE = loss_BCE.forward(preds_seg, labels)
 
-            # kdLoss_wt = (term_seg_Dice+term_seg_BCE).detach()/totKDLoss.detach()
             term_all = term_seg_Dice + term_seg_BCE + kdLoss_wt * totKDLoss
             term_all.backward()
 
