@@ -7,7 +7,10 @@ import nibabel as nib
 from skimage.transform import resize
 from torch.utils import data
 
-from batchgenerators.transforms import Compose
+try:
+    from batchgenerators.transforms.abstract_transforms import Compose
+except ImportError:
+    from batchgenerators.transforms import Compose
 from batchgenerators.transforms.spatial_transforms import SpatialTransform, MirrorTransform
 from batchgenerators.transforms.color_transforms import (
     BrightnessMultiplicativeTransform,
@@ -176,12 +179,12 @@ class BraTSDataSet(data.Dataset):
         t1ceNII = nib.load(datafiles["t1ce"])
         t2NII = nib.load(datafiles["t2"])
         labelNII = nib.load(datafiles["label"])
-        flair = self.truncate(flairNII.get_data())
-        t1 = self.truncate(t1NII.get_data())
-        t1ce = self.truncate(t1ceNII.get_data())
-        t2 = self.truncate(t2NII.get_data())
+        flair = self.truncate(flairNII.get_fdata())
+        t1 = self.truncate(t1NII.get_fdata())
+        t1ce = self.truncate(t1ceNII.get_fdata())
+        t2 = self.truncate(t2NII.get_fdata())
         image = np.array([flair, t1, t1ce, t2])
-        label = labelNII.get_data()
+        label = labelNII.get_fdata()
         image = image.astype(np.float32)
         label = label.astype(np.float32)
 
@@ -294,12 +297,12 @@ class BraTSValDataSet(data.Dataset):
         t2NII = nib.load(datafiles["t2"])
         labelNII = nib.load(datafiles["label"])
 
-        flair = self.truncate(flairNII.get_data())
-        t1 = self.truncate(t1NII.get_data())
-        t1ce = self.truncate(t1ceNII.get_data())
-        t2 = self.truncate(t2NII.get_data())
+        flair = self.truncate(flairNII.get_fdata())
+        t1 = self.truncate(t1NII.get_fdata())
+        t1ce = self.truncate(t1ceNII.get_fdata())
+        t2 = self.truncate(t2NII.get_fdata())
         image = np.array([flair, t1, t1ce, t2])
-        label = labelNII.get_data()
+        label = labelNII.get_fdata()
         name = datafiles["name"]
 
         label = self.id2trainId(label)
@@ -384,10 +387,10 @@ class BraTSEvalDataSet(data.Dataset):
         t1ceNII = nib.load(datafiles["t1ce"])
         t2NII = nib.load(datafiles["t2"])
 
-        flair = self.truncate(flairNII.get_data())
-        t1 = self.truncate(t1NII.get_data())
-        t1ce = self.truncate(t1ceNII.get_data())
-        t2 = self.truncate(t2NII.get_data())
+        flair = self.truncate(flairNII.get_fdata())
+        t1 = self.truncate(t1NII.get_fdata())
+        t1ce = self.truncate(t1ceNII.get_fdata())
+        t2 = self.truncate(t2NII.get_fdata())
         image = np.array([flair, t1, t1ce, t2])
         name = datafiles["name"]
 
@@ -403,7 +406,7 @@ class BraTSEvalDataSet(data.Dataset):
 
         if osp.exists(datafiles["label"]):
             labelNII = nib.load(datafiles["label"])
-            label = self.id2trainId(labelNII.get_data())
+            label = self.id2trainId(labelNII.get_fdata())
             label = label.transpose((0, 3, 1, 2)).astype(np.float32)
             return image.copy(), image_res.copy(), label.copy(), np.array(size), name, affine
         else:
