@@ -175,6 +175,7 @@ def validate(args, input_size, model, ValLoader, num_classes, modes, loss_D, los
         print('val_loss:', val_loss.item(), 'val_Dice:', val_Dice.item(), 'val_BCE:', val_BCE.item())
 
         val_loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.kd_weights.parameters(), max_norm=5.0)
         kd_optim.step()
 
         validation_loss += val_loss.item()
@@ -291,6 +292,7 @@ def main():
             term_all = term_seg_Dice + term_seg_BCE + kdLoss_wt * totKDLoss
             term_all.backward()
 
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)
             optimizer.step()
             print("kd_weights.grad:", model.kd_weights.kd_weights.grad)
 
