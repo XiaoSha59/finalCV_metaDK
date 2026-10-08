@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 
-def train_baseline(modality: str = "image_only", epochs: int = 50, batch_size: int = 32, lr: float = 0.01, device: str = "cpu", seed: int = 42):
+def train_baseline(modality: str = "image_only", epochs: int = 50, batch_size: int = 32, lr: float = 0.001, device: str = "cpu", seed: int = 42):
     """
     Trains Lower Bound (Single Modality) or Upper Bound (Full Modality).
     """

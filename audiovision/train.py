@@ -43,7 +43,7 @@ def train_metakd_audiovision(
     available_rate: float = 0.10,     # 0.05, 0.10, 0.15, 0.20, 1.0
     epochs: int = 60,
     batch_size: int = 32,
-    lr: float = 0.01,
+    lr: float = 0.001,
     kd_weight: float = 0.1,
     device: str = None,
     seed: int = 42,
