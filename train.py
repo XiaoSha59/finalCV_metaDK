@@ -188,65 +188,44 @@ def validate(args, input_size, model, ValLoader, num_classes, modes, loss_D, los
 
 
 def main():
-    """Create the ConResNet model and then start the training."""
+    """Create the MetaKD DualNet model and start training."""
     parser = get_arguments()
-    print(parser)
-    # os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+    args = parser.parse_args()
 
-    with Engine(custom_parser=parser) as engine:
-        args = parser.parse_args()
-        if args.num_gpus > 1:
-            torch.cuda.set_device(args.local_rank)
+    os.makedirs(args.snapshot_dir, exist_ok=True)
+    writer = SummaryWriter(args.snapshot_dir)
 
-        writer = SummaryWriter(args.snapshot_dir)
+    d, h, w = map(int, args.input_size.split(','))
+    input_size = (d, h, w)
 
-        d, h, w = map(int, args.input_size.split(','))
-        input_size = (d, h, w)
+    cudnn.benchmark = True
+    seed = args.random_seed
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
 
-        cudnn.benchmark = True
-        seed = args.random_seed
-        if engine.distributed:
-            seed = args.local_rank
-        torch.manual_seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed(seed)
+    model = DualNet(args=args, norm_cfg=args.norm_cfg, activation_cfg=args.activation_cfg,
+                    num_classes=args.num_classes, weight_std=args.weight_std, self_att=False, cross_att=False)
+    model.train()
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    model.to(device)
 
-        model = DualNet(args=args, norm_cfg=args.norm_cfg, activation_cfg=args.activation_cfg,
-                        num_classes=args.num_classes, weight_std=args.weight_std, self_att=False, cross_att=False)
-        model.train()
-        device = torch.device('cuda:{}'.format(args.local_rank))
-        model.to(device)
+    optimizer = torch.optim.SGD([p for n, p in model.named_parameters() if 'kd_weights' not in n], args.learning_rate, momentum=0.99, nesterov=True)
+    kd_optim = torch.optim.Adam(model.kd_weights.parameters(), args.learning_rate, weight_decay=args.weight_decay)
 
-        # optimizer = optim.Adam(
-        #     [{'params': filter(lambda p: p.requires_grad, model.parameters())}],
-        #     lr=args.learning_rate, weight_decay=args.weight_decay)
-        # optimizer = torch.optim.AdamW(model.parameters(), args.learning_rate)
-        # optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, model.parameters()), args.learning_rate, momentum=0.99, nesterov=True)
-        optimizer = torch.optim.SGD([p for n, p in model.named_parameters() if 'kd_weights' not in n], args.learning_rate, momentum=0.99, nesterov=True)
-        # kd_optim = torch.optim.SGD(model.kd_weights.parameters(), args.learning_rate, momentum=0.99, nesterov=True)
-        kd_optim = torch.optim.Adam(model.kd_weights.parameters(), args.learning_rate, weight_decay=args.weight_decay)
-
-        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2,
-        #                                                        patience=args.patience, verbose=True, threshold=1e-3,
-        #                                                        threshold_mode='abs')
-
-        if args.num_gpus > 1:
-            model = engine.data_parallel(model)
-
-        # load checkpoint...
-        if args.reload_from_checkpoint:
-            print('loading from checkpoint: {}'.format(args.reload_path))
-            if os.path.exists(args.reload_path):
-                # model.load_state_dict(torch.load(args.reload_path, map_location=torch.device('cpu')))
-                checkpoint = torch.load(args.reload_path)
-                model = checkpoint['model']
-                optimizer = checkpoint['optimizer']
-                kd_optim = checkpoint['kd_optim']
-                args.start_iters = checkpoint['iter']
-                print("Loaded model trained for", args.start_iters, "iters")
-            else:
-                print('File not exists in the reload path: {}'.format(args.reload_path))
-                exit(0)
+    # load checkpoint...
+    if args.reload_from_checkpoint:
+        print('loading from checkpoint: {}'.format(args.reload_path))
+        if os.path.exists(args.reload_path):
+            checkpoint = torch.load(args.reload_path)
+            model = checkpoint['model']
+            optimizer = checkpoint['optimizer']
+            kd_optim = checkpoint['kd_optim']
+            args.start_iters = checkpoint.get('iter', 0)
+            print("Loaded model trained for", args.start_iters, "iters")
+        else:
+            print('File does not exist in the reload path: {}'.format(args.reload_path))
+            exit(0)
 
         loss_D = loss.DiceLoss4BraTS().to(device)
         loss_BCE = loss.BCELoss4BraTS().to(device)
