@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyTorch checkpoints and models
+*.pth
+*.pt
+*.ckpt
+snapshots/
+
+# Dataset and output folders
+data/
+outputs/
+logs/
+*.nii
+*.nii.gz
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+venv/
+env/
+.env/
