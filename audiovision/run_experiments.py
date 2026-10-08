@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 
-def train_baseline(modality: str = "image_only", epochs: int = 50, batch_size: int = 32, lr: float = 0.001, device: str = "cpu", seed: int = 42):
+def train_baseline(modality: str = "image_only", epochs: int = 60, batch_size: int = 32, lr: float = 1e-3, device: str = "cpu", seed: int = 42):
     """
     Trains Lower Bound (Single Modality) or Upper Bound (Full Modality).
     """
@@ -22,7 +22,8 @@ def train_baseline(modality: str = "image_only", epochs: int = 50, batch_size: i
     )
 
     model = MetaKDAudioVision(num_classes=10, feat_dim=128).to(device)
-    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.99, nesterov=True, weight_decay=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-2)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.9)
     ce_loss_fn = nn.CrossEntropyLoss()
 
     best_val_acc = 0.0
@@ -47,6 +48,7 @@ def train_baseline(modality: str = "image_only", epochs: int = 50, batch_size: i
             loss.backward()
             optimizer.step()
 
+        scheduler.step()
         val_acc = evaluate_accuracy(model, val_loader, eval_mode=modality, device=device)
         test_acc = evaluate_accuracy(model, test_loader, eval_mode=modality, device=device)
 
@@ -60,41 +62,41 @@ def train_baseline(modality: str = "image_only", epochs: int = 50, batch_size: i
 def run_all_experiments():
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print("=" * 70)
-    print("[*] REPRODUCING METAKD ON AUDIOVISION-MNIST BENCHMARK")
+    print("[*] REPRODUCING METAKD ON AUDIOVISION-MNIST BENCHMARK (PAPER SETUP)")
     print(f"Hardware Device: {device.upper()}")
     print("=" * 70)
 
     rates = [0.05, 0.10, 0.15, 0.20]
     
     # --- Lower & Upper Bounds ---
-    print("\n[1/3] Training Lower Bounds & Upper Bound Baselines...")
-    lower_b_img = train_baseline(modality="image_only", epochs=40, device=device)
-    lower_b_aud = train_baseline(modality="audio_only", epochs=40, device=device)
-    upper_b_full = train_baseline(modality="full", epochs=40, device=device)
+    print("\n[1/3] Training Lower Bounds & Upper Bound Baselines (60 epochs)...")
+    lower_b_img = train_baseline(modality="image_only", epochs=60, device=device)
+    lower_b_aud = train_baseline(modality="audio_only", epochs=60, device=device)
+    upper_b_full = train_baseline(modality="full", epochs=60, device=device)
 
     print(f"  * Lower Bound (Image-only LowerB): {lower_b_img:.2f}%")
     print(f"  * Lower Bound (Audio-only LowerB): {lower_b_aud:.2f}%")
     print(f"  * Upper Bound (Full Modalities UpperB): {upper_b_full:.2f}%")
 
     # --- Table 3a: Missing Audio ---
-    print("\n[2/3] Running Table 3a Experiments (Missing Audio during training, Image-only testing)...")
+    print("\n[2/3] Running Table 3a Experiments (Missing Audio, Image-only testing, 60 epochs)...")
     tab3a_results = {}
     for rate in rates:
         start_t = time.time()
         acc, ckpt_path = train_metakd_audiovision(
-            missing_modality="audio", available_rate=rate, epochs=100, batch_size=32, device=device, verbose=False
+            missing_modality="audio", available_rate=rate, epochs=60, batch_size=32, device=device, verbose=False
         )
         elapsed = time.time() - start_t
         tab3a_results[f"{int(rate*100)}%"] = acc
         print(f"  * Audio Rate {int(rate*100):2d}% -> Test Accuracy: {acc:.2f}% | Saved: {ckpt_path} (Time: {elapsed:.1f}s)")
 
     # --- Table 3b: Missing Visual ---
-    print("\n[3/3] Running Table 3b Experiments (Missing Visual during training, Audio-only testing)...")
+    print("\n[3/3] Running Table 3b Experiments (Missing Visual, Audio-only testing, 60 epochs)...")
     tab3b_results = {}
     for rate in rates:
         start_t = time.time()
         acc, ckpt_path = train_metakd_audiovision(
-            missing_modality="visual", available_rate=rate, epochs=100, batch_size=32, device=device, verbose=False
+            missing_modality="visual", available_rate=rate, epochs=60, batch_size=32, device=device, verbose=False
         )
         elapsed = time.time() - start_t
         tab3b_results[f"{int(rate*100)}%"] = acc

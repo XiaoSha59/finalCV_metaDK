@@ -69,12 +69,13 @@ def train_metakd_audiovision(
 
     model = MetaKDAudioVision(num_classes=10, feat_dim=128).to(device)
 
-    # Lower-level optimizer (SGD + Nesterov momentum 0.99 for network parameters)
+    # Lower-level optimizer (Adam lr=1e-3, weight_decay=1e-2, decayed by 10% every 20 epochs)
     network_params = [p for n, p in model.named_parameters() if 'kd_weights' not in n]
-    optimizer = optim.SGD(network_params, lr=lr, momentum=0.99, nesterov=True, weight_decay=1e-4)
+    optimizer = optim.Adam(network_params, lr=lr, weight_decay=1e-2)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.9)
 
-    # Upper-level optimizer (Adam for KD weights)
-    kd_optim = optim.Adam(model.kd_weights.parameters(), lr=1e-2, weight_decay=5e-5)
+    # Upper-level optimizer (Adam lr=1e-2, weight_decay=1e-2 for KD importance weights)
+    kd_optim = optim.Adam(model.kd_weights.parameters(), lr=1e-2, weight_decay=1e-2)
     ce_loss_fn = nn.CrossEntropyLoss()
 
     best_val_acc = 0.0
@@ -114,6 +115,8 @@ def train_metakd_audiovision(
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
+
+        scheduler.step()
 
         # Step 2: Upper-level Meta update on Meta-Val
         model.train()
