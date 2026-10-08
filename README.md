@@ -245,6 +245,37 @@ Flair only             |              47.37%  |          73.01%  |          89.1
 
 ---
 
+## 🎧 AudioVision-MNIST Multi-Modal Classification (Paper Section 4.3)
+
+In addition to 3D Medical Segmentation, MetaKD evaluates on the **AudioVision-MNIST** benchmark (combining MNIST digits $28\times 28$ and Free Spoken Digits audio MFCCs $20\times 20$) under incomplete multi-modal learning settings following **SMIL (CVPR 2021)**.
+
+### 📊 Benchmark Protocol & Setup:
+* **Total Samples:** 1,500 paired audio-image samples across digits `0-9`.
+* **Dataset Splits:** Stratified 60% Train (900 pairs), 10% Meta-Val (150 pairs), 30% Test (450 pairs).
+* **Missing Modality Scenarios:**
+  * **Table 3a (Missing Audio):** Visual fully available (100%), Audio available at `{5%, 10%, 15%, 20%}`. Evaluated on **Image-only Test Set**.
+  * **Table 3b (Missing Visual):** Audio fully available (100%), Visual available at `{5%, 10%, 15%, 20%}`. Evaluated on **Audio-only Test Set**.
+
+### 🚀 Running AudioVision-MNIST Reproduction Locally:
+
+Run the automated all-in-one reproduction runner:
+```bash
+python -m audiovision.run_experiments
+```
+
+### 📁 AudioVision Package Structure:
+```text
+audiovision/
+├── __init__.py           # Package exports
+├── dataset.py            # 1,500 pairs extractor & missing rate mask generators
+├── models.py             # LeNet-5 (Visual) + 2D CNN (Audio) + Learnable W_kd (2x2)
+├── train.py              # Bi-level 2-Step Meta Optimizer (SGD Lower + Adam Upper)
+├── evaluate.py           # Evaluation for Image-only & Audio-only modes
+└── run_experiments.py    # Automated runner reproducing Table 3a & Table 3b
+```
+
+---
+
 ## 📑 Citation
 
 ```bibtex
