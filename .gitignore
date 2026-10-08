@@ -8,6 +8,8 @@ __pycache__/
 *.pt
 *.ckpt
 snapshots/
+checkpoints/
+audiovision/checkpoints/
 
 # Dataset and output folders
 data/
@@ -15,6 +17,13 @@ outputs/
 logs/
 *.nii
 *.nii.gz
+*.npz
+*.tar.gz
+*.zip
+
+# Cloud runner and background scripts
+metakd.service
+run_auto_train.sh
 
 # IDE and OS files
 .vscode/
