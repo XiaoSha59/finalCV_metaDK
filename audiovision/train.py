@@ -134,11 +134,11 @@ def train_metakd_audiovision(
                 val_logits, _ = torch.func.functional_call(model, all_virtual_params, (None, val_audios), {'eval_mode': 'audio_only'})
 
             meta_val_loss = ce_loss_fn(val_logits, val_labels)
-            meta_grads = torch.autograd.grad(meta_val_loss, model.kd_weights.kd_weights, allow_unused=True)
+            meta_grads = torch.autograd.grad(meta_val_loss, model.kd_weights.weights, allow_unused=True)
 
             if meta_grads[0] is not None:
                 kd_optim.zero_grad()
-                model.kd_weights.kd_weights.grad = meta_grads[0]
+                model.kd_weights.weights.grad = meta_grads[0]
                 kd_optim.step()
 
             # -------------------------------------------------------------
