@@ -136,22 +136,25 @@ class MetaKDAudioVision(nn.Module):
         if eval_mode == "image_only":
             imputed_aud_feat = img_feat
             fused_feat = torch.cat([img_feat, imputed_aud_feat], dim=-1)
-            fused_logits = self.fusion_classifier(fused_feat)
-            img_logits = self.img_classifier(img_feat)
-            logits = 0.5 * (fused_logits + img_logits)
+            logits = self.fusion_classifier(fused_feat)
             return logits, torch.tensor(0.0, device=images.device)
 
         if eval_mode == "audio_only":
             imputed_img_feat = aud_feat
             fused_feat = torch.cat([imputed_img_feat, aud_feat], dim=-1)
-            fused_logits = self.fusion_classifier(fused_feat)
-            aud_logits = self.aud_classifier(aud_feat)
-            logits = 0.5 * (fused_logits + aud_logits)
+            logits = self.fusion_classifier(fused_feat)
             return logits, torch.tensor(0.0, device=audios.device)
 
-        # Compute Cross-modal Knowledge Distillation Loss using IWV ratio & L1 loss (Eq. 5 & 6)
+        # Eq. 4: Meta-Validation objective weighted by IWV w_i * f_i
         iwv = self.kd_weights()
         w_v, w_a = iwv[0], iwv[1]
+
+        if eval_mode == "meta_val":
+            fused_feat = torch.cat([w_v * img_feat, w_a * aud_feat], dim=-1)
+            logits = self.fusion_classifier(fused_feat)
+            return logits, img_feat, aud_feat, torch.tensor(0.0, device=images.device)
+
+        # Compute Cross-modal Knowledge Distillation Loss using IWV ratio & L1 loss (Eq. 5 & 6)
         ratio_v2a = (w_v / (w_a + 1e-6)).clamp(max=10.0)
         ratio_a2v = (w_a / (w_v + 1e-6)).clamp(max=10.0)
 
@@ -169,7 +172,7 @@ class MetaKDAudioVision(nn.Module):
             diff_a2v = F.l1_loss(img_feat, aud_feat.detach())
             kd_loss = ratio_v2a * diff_v2a + ratio_a2v * diff_a2v
 
-        # Feature imputation for partial samples in batch
+        # Feature imputation for partial samples in batch (Eq. 2)
         if visual_mask is not None and audio_mask is not None:
             eff_img_feat = img_feat.clone()
             eff_aud_feat = aud_feat.clone()

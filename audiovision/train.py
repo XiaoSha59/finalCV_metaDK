@@ -182,6 +182,6 @@ def train_metakd_audiovision(
             weights = model.kd_weights().detach().cpu().numpy()
             print(f"Epoch [{epoch:03d}/{epochs:03d}] Loss: {total_loss/len(train_loader):.4f} | "
                   f"Val Acc ({target_eval_mode}): {val_acc:.2f}% | Best Test Acc: {best_test_acc:.2f}% | "
-                  f"KD Weights: [V->A: {weights[0,1]:.3f}, A->V: {weights[1,0]:.3f}]")
+                  f"IWV Weights: [Visual: {weights[0]:.3f}, Audio: {weights[1]:.3f}]")
 
     return best_test_acc, ckpt_path
