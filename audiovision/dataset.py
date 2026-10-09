@@ -143,13 +143,19 @@ class AudioVisionMNIST(Dataset):
         labels: np.ndarray,
         missing_modality: str = "none",  # "none", "audio", "visual"
         available_rate: float = 1.0,     # Rate of available modality in training (e.g. 0.05, 0.10, 0.15, 0.20)
+        audio_noise_std: float = 0.5,    # SMIL benchmark standard acoustic noise level
         seed: int = 42
     ):
         self.images = images
-        self.audios = audios
         self.labels = labels
         self.missing_modality = missing_modality
         self.available_rate = available_rate
+
+        if audio_noise_std > 0.0:
+            rng = np.random.RandomState(seed)
+            self.audios = audios + rng.randn(*audios.shape).astype(np.float32) * audio_noise_std
+        else:
+            self.audios = audios
 
         self.visual_mask = np.ones(len(labels), dtype=bool)
         self.audio_mask = np.ones(len(labels), dtype=bool)
@@ -197,10 +203,12 @@ def get_audiovision_loaders(
     batch_size: int = 32,
     missing_modality: str = "none",
     available_rate: float = 1.0,
+    audio_noise_std: float = 0.5,
     seed: int = 42
 ):
     """
     Creates stratified Train (60% = 900), Meta-Val (10% = 150), and Test (30% = 450) DataLoaders.
+    Follows SMIL standard setup with audio_noise_std=0.5.
     """
     images, audios, labels = build_audiovision_pairs(audio_dir, mnist_dir)
     
@@ -222,15 +230,18 @@ def get_audiovision_loaders(
 
     train_set = AudioVisionMNIST(
         images[train_idx], audios[train_idx], labels[train_idx],
-        missing_modality=missing_modality, available_rate=available_rate, seed=seed
+        missing_modality=missing_modality, available_rate=available_rate,
+        audio_noise_std=audio_noise_std, seed=seed
     )
     val_set = AudioVisionMNIST(
         images[val_idx], audios[val_idx], labels[val_idx],
-        missing_modality="none", available_rate=1.0, seed=seed
+        missing_modality="none", available_rate=1.0,
+        audio_noise_std=audio_noise_std, seed=seed
     )
     test_set = AudioVisionMNIST(
         images[test_idx], audios[test_idx], labels[test_idx],
-        missing_modality="none", available_rate=1.0, seed=seed
+        missing_modality="none", available_rate=1.0,
+        audio_noise_std=audio_noise_std, seed=seed
     )
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=False)
