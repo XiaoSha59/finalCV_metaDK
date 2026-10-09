@@ -69,23 +69,25 @@ class AudioEncoder(nn.Module):
 
 class KDWeights2D(nn.Module):
     """
-    Learnable MetaKD Knowledge Distillation Weight Matrix (2x2: Visual <-> Audio).
-    Optimized at the upper-level (Meta-Val) by Adam optimizer (lr=1e-2, weight_decay=1e-2).
+    Learnable MetaKD Modality Importance Weight Vector (IWV) w = [w_v, w_a]^T.
+    Normalized via Softmax as specified in Eq. (6) and Table 6.
     """
     def __init__(self):
         super(KDWeights2D, self).__init__()
-        self.kd_weights = nn.Parameter(torch.ones(2, 2) * 0.5)
+        # Initialized equally for visual and audio
+        self.weights = nn.Parameter(torch.tensor([1.0, 1.0], dtype=torch.float32))
 
     def forward(self) -> torch.Tensor:
-        return F.softmax(self.kd_weights, dim=-1)
+        return F.softmax(self.weights, dim=0)
 
 
 class MetaKDAudioVision(nn.Module):
     """
-    MetaKD Framework for AudioVision-MNIST Digit Classification (SMIL Protocol).
-    - Conv + BN + Dropout + FC Encoders
-    - 2 FC Layers with Dropout for Classification Head
-    - Learnable MetaKD cross-modal distillation loss
+    MetaKD Framework for AudioVision-MNIST Digit Classification (Paper Protocol).
+    - ImageEncoder & AudioEncoder
+    - Meta-Learned Importance Weight Vector (IWV) with Softmax
+    - L1 Cross-modal Distillation Loss
+    - Mean Feature Imputation (Eq. 2) for missing modalities
     """
     def __init__(self, num_classes: int = 10, feat_dim: int = 128):
         super(MetaKDAudioVision, self).__init__()
@@ -96,7 +98,7 @@ class MetaKDAudioVision(nn.Module):
         self.img_enc = ImageEncoder(in_channels=1, feat_dim=feat_dim)
         self.aud_enc = AudioEncoder(in_channels=1, feat_dim=feat_dim)
 
-        # Learnable MetaKD distillation weights
+        # Learnable MetaKD distillation IWV weights
         self.kd_weights = KDWeights2D()
 
         # Classification Heads (2 FC layers with dropout as specified in paper)
@@ -121,8 +123,8 @@ class MetaKDAudioVision(nn.Module):
 
     def forward(
         self,
-        images: torch.Tensor,
-        audios: torch.Tensor,
+        images: torch.Tensor = None,
+        audios: torch.Tensor = None,
         visual_mask: torch.Tensor = None,
         audio_mask: torch.Tensor = None,
         eval_mode: str = "full"
@@ -130,33 +132,54 @@ class MetaKDAudioVision(nn.Module):
         img_feat = self.img_enc(images) if images is not None else None
         aud_feat = self.aud_enc(audios) if audios is not None else None
 
+        # Eq. 2: Feature Imputation during Single-Modality Inference / Testing
         if eval_mode == "image_only":
-            logits = self.img_classifier(img_feat)
+            imputed_aud_feat = img_feat
+            fused_feat = torch.cat([img_feat, imputed_aud_feat], dim=-1)
+            fused_logits = self.fusion_classifier(fused_feat)
+            img_logits = self.img_classifier(img_feat)
+            logits = 0.5 * (fused_logits + img_logits)
             return logits, torch.tensor(0.0, device=images.device)
 
         if eval_mode == "audio_only":
-            logits = self.aud_classifier(aud_feat)
+            imputed_img_feat = aud_feat
+            fused_feat = torch.cat([imputed_img_feat, aud_feat], dim=-1)
+            fused_logits = self.fusion_classifier(fused_feat)
+            aud_logits = self.aud_classifier(aud_feat)
+            logits = 0.5 * (fused_logits + aud_logits)
             return logits, torch.tensor(0.0, device=audios.device)
 
-        # Compute Cross-modal Knowledge Distillation Loss
-        weights = self.kd_weights()
-        kd_loss = torch.tensor(0.0, device=images.device)
+        # Compute Cross-modal Knowledge Distillation Loss using IWV ratio & L1 loss (Eq. 5 & 6)
+        iwv = self.kd_weights()
+        w_v, w_a = iwv[0], iwv[1]
+        ratio_v2a = (w_v / (w_a + 1e-6)).clamp(max=10.0)
+        ratio_a2v = (w_a / (w_v + 1e-6)).clamp(max=10.0)
+
+        device = images.device if images is not None else audios.device
+        kd_loss = torch.tensor(0.0, device=device)
 
         if visual_mask is not None and audio_mask is not None:
             valid_pair = (visual_mask & audio_mask)
             if valid_pair.sum() > 0:
-                diff_v2a = F.mse_loss(img_feat[valid_pair], aud_feat[valid_pair].detach())
-                diff_a2v = F.mse_loss(aud_feat[valid_pair], img_feat[valid_pair].detach())
-                kd_loss = weights[0, 1] * diff_v2a + weights[1, 0] * diff_a2v
+                diff_v2a = F.l1_loss(aud_feat[valid_pair], img_feat[valid_pair].detach())
+                diff_a2v = F.l1_loss(img_feat[valid_pair], aud_feat[valid_pair].detach())
+                kd_loss = ratio_v2a * diff_v2a + ratio_a2v * diff_a2v
         else:
-            diff_v2a = F.mse_loss(img_feat, aud_feat.detach())
-            diff_a2v = F.mse_loss(aud_feat, img_feat.detach())
-            kd_loss = weights[0, 1] * diff_v2a + weights[1, 0] * diff_a2v
+            diff_v2a = F.l1_loss(aud_feat, img_feat.detach())
+            diff_a2v = F.l1_loss(img_feat, aud_feat.detach())
+            kd_loss = ratio_v2a * diff_v2a + ratio_a2v * diff_a2v
 
-        # Fused classification logits
-        fused_feat = torch.cat([img_feat, aud_feat], dim=-1)
+        # Feature imputation for partial samples in batch
+        if visual_mask is not None and audio_mask is not None:
+            eff_img_feat = img_feat.clone()
+            eff_aud_feat = aud_feat.clone()
+            eff_img_feat[~visual_mask] = aud_feat[~visual_mask].detach()
+            eff_aud_feat[~audio_mask] = img_feat[~audio_mask].detach()
+            fused_feat = torch.cat([eff_img_feat, eff_aud_feat], dim=-1)
+        else:
+            fused_feat = torch.cat([img_feat, aud_feat], dim=-1)
+
         logits = self.fusion_classifier(fused_feat)
-
         img_logits = self.img_classifier(img_feat)
         aud_logits = self.aud_classifier(aud_feat)
 
