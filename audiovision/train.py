@@ -78,6 +78,8 @@ def train_metakd_audiovision(
     kd_optim = optim.Adam(model.kd_weights.parameters(), lr=1e-2, weight_decay=1e-2)
     ce_loss_fn = nn.CrossEntropyLoss()
 
+    import itertools
+
     best_val_acc = 0.0
     best_test_acc = 0.0
     best_model_state = None
@@ -89,11 +91,13 @@ def train_metakd_audiovision(
     ckpt_filename = f"metakd_{missing_modality}_rate_{int(available_rate*100)}pct.pth"
     ckpt_path = os.path.join(ckpt_dir, ckpt_filename)
 
+    val_iter = itertools.cycle(val_loader)
+
     for epoch in range(1, epochs + 1):
         model.train()
         total_loss = 0.0
+        current_lr = scheduler.get_last_lr()[0]
 
-        # Step 1: Lower-level training on Meta-Train
         for batch in train_loader:
             images = batch['image'].to(device)
             audios = batch['audio'].to(device)
@@ -101,35 +105,59 @@ def train_metakd_audiovision(
             v_mask = batch['visual_mask'].to(device)
             a_mask = batch['audio_mask'].to(device)
 
-            optimizer.zero_grad()
-
-            logits, img_logits, aud_logits, kd_loss = model(
-                images, audios, visual_mask=v_mask, audio_mask=a_mask, eval_mode="full"
-            )
-
-            loss_fused = ce_loss_fn(logits, labels)
-            loss_img = ce_loss_fn(img_logits[v_mask], labels[v_mask]) if v_mask.sum() > 0 else 0.0
-            loss_aud = ce_loss_fn(aud_logits[a_mask], labels[a_mask]) if a_mask.sum() > 0 else 0.0
-
-            loss = loss_fused + 0.5 * (loss_img + loss_aud) + kd_weight * kd_loss
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-
-        scheduler.step()
-
-        # Step 2: Upper-level Meta update on Meta-Val
-        model.train()
-        for val_batch in val_loader:
+            val_batch = next(val_iter)
             val_images = val_batch['image'].to(device)
             val_audios = val_batch['audio'].to(device)
             val_labels = val_batch['label'].to(device)
 
-            kd_optim.zero_grad()
-            val_logits, _, _, _ = model(val_images, val_audios, eval_mode="full")
+            # -------------------------------------------------------------
+            # Step 1: Bi-level Upper-Level Meta Update on Meta-Val (kd_weights)
+            # -------------------------------------------------------------
+            logits, img_logits, aud_logits, kd_loss = model(
+                images, audios, visual_mask=v_mask, audio_mask=a_mask, eval_mode="full"
+            )
+            loss_fused = ce_loss_fn(logits, labels)
+            loss_img = ce_loss_fn(img_logits[v_mask], labels[v_mask]) if v_mask.sum() > 0 else 0.0
+            loss_aud = ce_loss_fn(aud_logits[a_mask], labels[a_mask]) if a_mask.sum() > 0 else 0.0
+            train_loss = loss_fused + 0.5 * (loss_img + loss_aud) + kd_weight * kd_loss
+
+            net_params = {k: v for k, v in model.named_parameters() if 'kd_weights' not in k and v.requires_grad}
+            grads = torch.autograd.grad(train_loss, net_params.values(), create_graph=True, allow_unused=True)
+
+            virtual_params = {k: (p - current_lr * g if g is not None else p) for (k, p), g in zip(net_params.items(), grads)}
+            all_virtual_params = {**dict(model.named_parameters()), **virtual_params}
+
+            # Evaluate on meta-validation batch with virtual parameters
+            if target_eval_mode == "image_only":
+                val_logits, _ = torch.func.functional_call(model, all_virtual_params, (val_images, None), {'eval_mode': 'image_only'})
+            else:
+                val_logits, _ = torch.func.functional_call(model, all_virtual_params, (None, val_audios), {'eval_mode': 'audio_only'})
+
             meta_val_loss = ce_loss_fn(val_logits, val_labels)
-            meta_val_loss.backward()
-            kd_optim.step()
+            meta_grads = torch.autograd.grad(meta_val_loss, model.kd_weights.kd_weights, allow_unused=True)
+
+            if meta_grads[0] is not None:
+                kd_optim.zero_grad()
+                model.kd_weights.kd_weights.grad = meta_grads[0]
+                kd_optim.step()
+
+            # -------------------------------------------------------------
+            # Step 2: Lower-Level Optimization on Meta-Train (Network Parameters)
+            # -------------------------------------------------------------
+            optimizer.zero_grad()
+            logits, img_logits, aud_logits, kd_loss = model(
+                images, audios, visual_mask=v_mask, audio_mask=a_mask, eval_mode="full"
+            )
+            loss_fused = ce_loss_fn(logits, labels)
+            loss_img = ce_loss_fn(img_logits[v_mask], labels[v_mask]) if v_mask.sum() > 0 else 0.0
+            loss_aud = ce_loss_fn(aud_logits[a_mask], labels[a_mask]) if a_mask.sum() > 0 else 0.0
+            step_loss = loss_fused + 0.5 * (loss_img + loss_aud) + kd_weight * kd_loss
+
+            step_loss.backward()
+            optimizer.step()
+            total_loss += step_loss.item()
+
+        scheduler.step()
 
         # Validation & Testing
         val_acc = evaluate_accuracy(model, val_loader, eval_mode=target_eval_mode, device=device)
@@ -138,7 +166,6 @@ def train_metakd_audiovision(
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_test_acc = test_acc
-            # Save best checkpoint
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
