@@ -10,6 +10,8 @@ __pycache__/
 snapshots/
 checkpoints/
 audiovision/checkpoints/
+adni/checkpoints/
+adni/data_processed/
 
 # Dataset and output folders
 data/
