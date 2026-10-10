@@ -314,7 +314,7 @@ def main():
                 torch.save(checkpoint, osp.join(args.snapshot_dir, 'final.pth'))
                 break
 
-            if i_iter % args.val_pred_every == args.val_pred_every - 1 and i_iter != 0 and (args.local_rank == 0):
+            if (i_iter % 500 == 0 or i_iter % args.val_pred_every == args.val_pred_every - 1) and i_iter != 0 and (args.local_rank == 0):
                 print('save model ...')
                 checkpoint = {
                     'model': model,
