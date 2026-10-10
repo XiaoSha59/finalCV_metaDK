@@ -168,7 +168,7 @@ def predict_sliding(args, net, img_list, tile_size, classes):
     return full_probs
 
 
-from metrics import dice_score, compute_brats_subregion_dice, print_brats_summary_table
+from utils.metrics import dice_score, compute_brats_subregion_dice, print_brats_summary_table
 
 
 def main():
