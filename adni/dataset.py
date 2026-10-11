@@ -73,7 +73,7 @@ def get_adni_dataloaders(npz_path="adni/data_processed/adni_processed.npz", batc
     val_ds = ADNIDataset(npz_path=npz_path, split="val", filter_available=False)
     test_ds = ADNIDataset(npz_path=npz_path, split="test", filter_available=False)
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers)
 

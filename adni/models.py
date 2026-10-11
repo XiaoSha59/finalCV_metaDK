@@ -44,7 +44,8 @@ class KD_Weights(nn.Module):
 
     def get_ratio(self, i, j):
         w = self.get_weights()
-        return w[i] / (w[j] + 1e-7)
+        ratio = w[i] / (w[j] + 1e-7)
+        return torch.clamp(ratio, max=10.0)
 
 
 class MetaKD_ADNI(nn.Module):

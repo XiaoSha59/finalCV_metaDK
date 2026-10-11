@@ -86,7 +86,13 @@ def main():
     task_scheduler = optim.lr_scheduler.StepLR(task_optimizer, step_size=20, gamma=0.9)
     kd_optimizer = optim.Adam(model.kd_weights.parameters(), lr=args.kd_lr, weight_decay=args.kd_weight_decay)
 
-    criterion = nn.CrossEntropyLoss()
+    # Balanced class weights to enhance precision and recall across CTL, MCI, and AD
+    train_labels_arr = train_loader.dataset.y
+    cls_counts = np.bincount(train_labels_arr, minlength=3).astype(np.float32)
+    cls_weights = len(train_labels_arr) / (3.0 * cls_counts)
+    cls_weights = cls_weights / cls_weights.mean()  # normalize so mean is 1.0
+    cls_weights_tensor = torch.tensor(cls_weights, dtype=torch.float32, device=device)
+    criterion = nn.CrossEntropyLoss(weight=cls_weights_tensor)
 
     best_val_f1 = -1.0
     best_checkpoint_path = os.path.join(args.snapshot_dir, "best_adni_model.pth")

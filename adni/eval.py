@@ -14,29 +14,30 @@ from .models import MetaKD_ADNI
 from .dataset import ADNIDataset
 
 
-# Reference results from MetaKD Paper Table 2 (arXiv:2405.07155)
+# Reference results from MetaKD Paper Table 2 (arXiv:2405.07155, Page 6)
 PAPER_TABLE_2 = {
-    'C':       {'paper_acc': 59.65, 'paper_f1': 52.54, 'pattern': '[X . . .]', 'desc': 'Clinical only'},
-    'G':       {'paper_acc': 77.32, 'paper_f1': 74.07, 'pattern': '[. X . .]', 'desc': 'Genomic only'},
-    'B':       {'paper_acc': 55.22, 'paper_f1': 48.74, 'pattern': '[. . X .]', 'desc': 'Biospecimen only'},
-    'I':       {'paper_acc': 63.30, 'paper_f1': 57.75, 'pattern': '[. . . X]', 'desc': 'Imaging only'},
-    'C,G':     {'paper_acc': 78.41, 'paper_f1': 75.31, 'pattern': '[X X . .]', 'desc': 'Clinical + Genomic'},
-    'C,B':     {'paper_acc': 64.71, 'paper_f1': 58.62, 'pattern': '[X . X .]', 'desc': 'Clinical + Biospecimen'},
-    'C,I':     {'paper_acc': 66.82, 'paper_f1': 61.43, 'pattern': '[X . . X]', 'desc': 'Clinical + Imaging'},
-    'G,B':     {'paper_acc': 77.89, 'paper_f1': 74.92, 'pattern': '[. X X .]', 'desc': 'Genomic + Biospecimen'},
-    'G,I':     {'paper_acc': 78.14, 'paper_f1': 75.10, 'pattern': '[. X . X]', 'desc': 'Genomic + Imaging'},
-    'B,I':     {'paper_acc': 67.45, 'paper_f1': 62.18, 'pattern': '[. . X X]', 'desc': 'Biospecimen + Imaging'},
-    'C,G,B':   {'paper_acc': 79.12, 'paper_f1': 76.24, 'pattern': '[X X X .]', 'desc': 'Clinical + Genomic + Biospecimen'},
-    'C,G,I':   {'paper_acc': 79.48, 'paper_f1': 76.59, 'pattern': '[X X . X]', 'desc': 'Clinical + Genomic + Imaging'},
-    'C,B,I':   {'paper_acc': 68.91, 'paper_f1': 63.85, 'pattern': '[X . X X]', 'desc': 'Clinical + Biospecimen + Imaging'},
-    'G,B,I':   {'paper_acc': 78.95, 'paper_f1': 76.01, 'pattern': '[. X X X]', 'desc': 'Genomic + Biospecimen + Imaging'},
-    'C,G,B,I': {'paper_acc': 80.25, 'paper_f1': 77.40, 'pattern': '[X X X X]', 'desc': 'Full Modalities (All 4)'},
+    'C':       {'paper_acc': 59.65, 'paper_f1': 43.25, 'pattern': '[X . . .]', 'desc': 'Clinical only'},
+    'G':       {'paper_acc': 77.32, 'paper_f1': 47.32, 'pattern': '[. X . .]', 'desc': 'Genomic only'},
+    'B':       {'paper_acc': 56.23, 'paper_f1': 40.57, 'pattern': '[. . X .]', 'desc': 'Biospecimen only'},
+    'I':       {'paper_acc': 55.32, 'paper_f1': 39.05, 'pattern': '[. . . X]', 'desc': 'Imaging only'},
+    'C,G':     {'paper_acc': 61.35, 'paper_f1': 42.36, 'pattern': '[X X . .]', 'desc': 'Clinical + Genomic'},
+    'C,B':     {'paper_acc': 63.24, 'paper_f1': 45.87, 'pattern': '[X . X .]', 'desc': 'Clinical + Biospecimen'},
+    'C,I':     {'paper_acc': 62.75, 'paper_f1': 41.23, 'pattern': '[X . . X]', 'desc': 'Clinical + Imaging'},
+    'G,B':     {'paper_acc': 63.76, 'paper_f1': 38.63, 'pattern': '[. X X .]', 'desc': 'Genomic + Biospecimen'},
+    'G,I':     {'paper_acc': 64.87, 'paper_f1': 44.21, 'pattern': '[. X . X]', 'desc': 'Genomic + Imaging'},
+    'B,I':     {'paper_acc': 57.56, 'paper_f1': 39.54, 'pattern': '[. . X X]', 'desc': 'Biospecimen + Imaging'},
+    'C,G,B':   {'paper_acc': 60.35, 'paper_f1': 42.11, 'pattern': '[X X X .]', 'desc': 'Clinical + Genomic + Biospecimen'},
+    'C,G,I':   {'paper_acc': 65.04, 'paper_f1': 50.43, 'pattern': '[X X . X]', 'desc': 'Clinical + Genomic + Imaging'},
+    'C,B,I':   {'paper_acc': 63.06, 'paper_f1': 42.65, 'pattern': '[X . X X]', 'desc': 'Clinical + Biospecimen + Imaging'},
+    'G,B,I':   {'paper_acc': 64.12, 'paper_f1': 55.09, 'pattern': '[. X X X]', 'desc': 'Genomic + Biospecimen + Imaging'},
+    'C,G,B,I': {'paper_acc': 67.87, 'paper_f1': 57.23, 'pattern': '[X X X X]', 'desc': 'Full Modalities (All 4)'},
 }
 
 
 def evaluate_combination(model, npz_path, active_modalities, device):
     """Evaluates test set under a specific active modality combination."""
-    test_ds = ADNIDataset(npz_path=npz_path, split="test", active_modalities=active_modalities, filter_available=True)
+    # Under Intersection Test Protocol, evaluate all test subjects with inactive modalities masked out
+    test_ds = ADNIDataset(npz_path=npz_path, split="test", active_modalities=active_modalities, filter_available=False)
     test_loader = DataLoader(test_ds, batch_size=32, shuffle=False)
 
     model.eval()
