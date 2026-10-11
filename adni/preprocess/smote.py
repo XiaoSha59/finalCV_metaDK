@@ -6,28 +6,49 @@ import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
 
-def smote_oversample(X, y, k_neighbors=5, random_state=42):
+def smote_oversample(X, y, k_neighbors=5, target_counts=None, target_ratios=None, random_state=42):
     """
-    Applies SMOTE on minority classes to balance the training distribution.
-    X: np.ndarray of shape (N, D)
-    y: np.ndarray of shape (N,) with integer class labels [0, 1, 2]
+    Applies SMOTE (k=5) on minority classes to address severe class imbalance
+    while maintaining the natural underlying population distribution characteristics
+    (~50-60% CTL, 25-35% MCI, 15-20% AD) as specified in MetaKD paper Section 8.
+    
+    Avoids artificial flat 1:1:1 oversampling which distorts population priors
+    and collapses test accuracy on majority classes.
     """
     np.random.seed(random_state)
     classes, counts = np.unique(y, return_counts=True)
-    max_count = np.max(counts)
+    count_dict = dict(zip(classes, counts))
+
+    # Determine number of synthetic samples needed per class
+    if target_counts is not None:
+        needed_dict = {cls: max(0, target_counts.get(cls, count) - count) for cls, count in count_dict.items()}
+    elif target_ratios is not None:
+        if isinstance(target_ratios, (list, tuple)):
+            target_ratios = {i: r for i, r in enumerate(target_ratios)}
+        max_cls = max(count_dict, key=count_dict.get)
+        base_n = count_dict[max_cls] / target_ratios[max_cls]
+        needed_dict = {cls: max(0, int(round(base_n * target_ratios[cls])) - count_dict[cls]) for cls in classes}
+    else:
+        # Default proportional SMOTE: moderately augment severe minority class (AD) by +30%
+        # to enhance sensitivity while preserving natural distribution characteristics
+        needed_dict = {}
+        for cls, count in count_dict.items():
+            if count < counts[0] * 0.5:  # severe minority class (AD)
+                needed_dict[cls] = int(round(count * 0.30))
+            else:
+                needed_dict[cls] = 0
 
     X_balanced = [X.copy()]
     y_balanced = [y.copy()]
 
-    for cls, count in zip(classes, counts):
-        n_synthetic_needed = max_count - count
+    for cls in classes:
+        n_synthetic_needed = needed_dict.get(cls, 0)
         if n_synthetic_needed <= 0:
             continue
 
         X_cls = X[y == cls]
         k = min(k_neighbors, len(X_cls) - 1)
         if k < 1:
-            # If too few samples, replicate with tiny noise
             indices = np.random.choice(len(X_cls), size=n_synthetic_needed, replace=True)
             synth_samples = X_cls[indices] + np.random.normal(0, 1e-4, size=(n_synthetic_needed, X.shape[1]))
         else:
@@ -54,3 +75,4 @@ def smote_oversample(X, y, k_neighbors=5, random_state=42):
     # Shuffle resampled dataset
     perm = np.random.permutation(len(y_resampled))
     return X_resampled[perm], y_resampled[perm]
+
