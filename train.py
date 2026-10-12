@@ -16,7 +16,7 @@ from math import ceil
 from tensorboardX import SummaryWriter
 
 from models import DualNet, conv3x3x3
-from datasets import BraTSDataSet, BraTSValDataSet, my_collate, val_collate
+from datasets import BraTSDataSet, BraTSValDataSet, my_collate
 import losses as loss
 
 start = timeit.default_timer()
@@ -50,14 +50,14 @@ def get_arguments():
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument("--num_steps", type=int, default=115000)
     parser.add_argument("--start_iters", type=int, default=0)
-    parser.add_argument("--val_pred_every", type=int, default=2000)
+    parser.add_argument("--val_pred_every", type=int, default=500)
     parser.add_argument("--learning_rate", type=float, default=1e-2)
     parser.add_argument("--num_classes", type=int, default=3)
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--weight_std", type=str2bool, default=True)
     parser.add_argument("--momentum", type=float, default=0.99)
     parser.add_argument("--power", type=float, default=0.9)
-    parser.add_argument("--weight_decay", type=float, default=5e-5)
+    parser.add_argument("--weight_decay", type=float, default=0.0005)
     parser.add_argument("--ignore_label", type=int, default=255)
     parser.add_argument("--is_training", action="store_true")
     parser.add_argument("--random_mirror", type=str2bool, default=True)
@@ -85,24 +85,22 @@ def adjust_learning_rate(optimizer, i_iter, lr, num_steps, power):
 
 def dice_score(preds, labels):
     assert preds.shape[0] == labels.shape[0], "predict & target batch size don't match"
-    predict = torch.clamp(preds.contiguous().view(preds.shape[0], -1), 0.0, 1.0)
-    target = torch.clamp(labels.contiguous().view(labels.shape[0], -1), 0.0, 1.0)
+    predict = preds.contiguous().view(preds.shape[0], -1)
+    target = labels.contiguous().view(labels.shape[0], -1)
 
     num = torch.sum(torch.mul(predict, target), dim=1)
-    den = torch.sum(predict, dim=1) + torch.sum(target, dim=1) + 1e-5
+    den = torch.sum(predict, dim=1) + torch.sum(target, dim=1) + 1
 
-    dice = (2.0 * num + 1e-5) / den
+    dice = 2 * num / den
     return dice.mean()
 
 
 def compute_dice_score(preds, labels):
-    probs = torch.sigmoid(preds)
-    pred_bin = (probs > 0.5).float()
-    labels = torch.clamp(labels, 0.0, 1.0)
+    preds = torch.sigmoid(preds)
 
-    dice_ET = dice_score(pred_bin[:, 0], labels[:, 0]).cpu().data.numpy()
-    dice_WT = dice_score(pred_bin[:, 1], labels[:, 1]).cpu().data.numpy()
-    dice_TC = dice_score(pred_bin[:, 2], labels[:, 2]).cpu().data.numpy()
+    dice_ET = dice_score(preds[:, 0], labels[:, 0]).cpu().data.numpy()
+    dice_WT = dice_score(preds[:, 1], labels[:, 1]).cpu().data.numpy()
+    dice_TC = dice_score(preds[:, 2], labels[:, 2]).cpu().data.numpy()
     return dice_ET, dice_WT, dice_TC
 
 
@@ -169,7 +167,6 @@ def validate(args, input_size, model, ValLoader, num_classes, modes, loss_D, los
         print('val_loss:', val_loss.item(), 'val_Dice:', val_Dice.item(), 'val_BCE:', val_BCE.item())
 
         val_loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.kd_weights.parameters(), max_norm=5.0)
         kd_optim.step()
 
         validation_loss += val_loss.item()
@@ -219,11 +216,12 @@ def main():
         if os.path.exists(args.reload_path):
             checkpoint = torch.load(args.reload_path, weights_only=False)
             model = checkpoint['model']
+            model.to(device)
             args.start_iters = checkpoint.get('iter', 0)
-            # Recreate clean optimizers with clean momentum buffers
+            # Recreate clean optimizers — avoids stale momentum buffers from collapsed run
             optimizer = torch.optim.SGD([p for n, p in model.named_parameters() if 'kd_weights' not in n], args.learning_rate, momentum=0.99, nesterov=True)
             kd_optim = torch.optim.Adam(model.kd_weights.parameters(), args.learning_rate, weight_decay=args.weight_decay)
-            print("Loaded model trained for", args.start_iters, "iters with clean optimizer momentum")
+            print("Loaded model trained for", args.start_iters, "iters (clean optimizer momentum)")
         else:
             print('File does not exist in the reload path: {}'.format(args.reload_path))
             exit(0)
@@ -270,7 +268,6 @@ def main():
         collate_fn=val_collate
     )
 
-    val_Dice_best = -999999
     kdLoss_wt = args.alpha
 
     for i_iter, batch in enumerate(trainloader):
@@ -293,7 +290,6 @@ def main():
 
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)
             optimizer.step()
-            print("kd_weights.grad:", model.kd_weights.kd_weights.grad)
 
             if i_iter % 100 == 0 and (args.local_rank == 0):
                 writer.add_scalar('learning_rate', lr, i_iter)
@@ -325,29 +321,16 @@ def main():
                 torch.save(checkpoint, osp.join(args.snapshot_dir, 'last.pth'))
 
             # val and identify the best modality for each tumor
-            if not args.train_only and i_iter != 0 and i_iter % args.val_pred_every == 0:
+            if not args.train_only and i_iter % args.val_pred_every == 0:
                 print('validate ...')
                 val_start = timeit.default_timer()
-                # kd_lr = adjust_learning_rate(kd_optim, i_iter, args.learning_rate, args.num_steps, args.power)
                 val_ET, val_WT, val_TC = validate(args, input_size, model, valloader, args.num_classes, args.mode, loss_D, loss_BCE, kd_optim)
-                val_avg_Dice = (val_ET + val_WT + val_TC) / 3.0
                 if (args.local_rank == 0):
                     writer.add_scalar('Val_ET_Dice', val_ET, i_iter)
                     writer.add_scalar('Val_WT_Dice', val_WT, i_iter)
                     writer.add_scalar('Val_TC_Dice', val_TC, i_iter)
-                    writer.add_scalar('Val_Avg_Dice', val_avg_Dice, i_iter)
-                    print('Validate iter = {}, ET = {:.4f}, WT = {:.4f}, TC = {:.4f}, Avg = {:.4f}'.format(i_iter, val_ET, val_WT, val_TC, val_avg_Dice))
-                    if val_avg_Dice > val_Dice_best:
-                        val_Dice_best = val_avg_Dice
-                        print('>>> New Best Model saved with Avg Dice: {:.4f} <<<'.format(val_Dice_best))
-                        best_checkpoint = {
-                            'model': model,
-                            'optimizer': optimizer,
-                            'kd_optim': kd_optim,
-                            'iter': i_iter,
-                            'best_val_dice': val_Dice_best
-                        }
-                        torch.save(best_checkpoint, osp.join(args.snapshot_dir, 'best_model.pth'))
+                    print('Validate iter = {}, ET = {:.4f}, WT = {:.4f}, TC = {:.4f}'.format(i_iter, val_ET, val_WT, val_TC))
+                    print('IWV (softmax):', model.kd_weights.get_kdWeights().detach().cpu().numpy())
                 val_end = timeit.default_timer()
                 print('val one iter', val_end - val_start, 'seconds')
 
