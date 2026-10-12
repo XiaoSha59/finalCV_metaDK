@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================
-# MetaKD BraTS 2018 — 2-Phase Training Pipeline
+# MetaKD BraTS 2018  2-Phase Training Pipeline
 # Follows the EXACT methodology from billhhh/MetaKD run.sh:
 #   Phase 1 (0 ? 80k):   Full 4 modalities  --mode=0,1,2,3
 #   Phase 2 (80k ? 115k): Missing modality  --mode=random
@@ -17,7 +17,7 @@ cd "$WORKDIR"
 mkdir -p logs snapshots/BraTS18_phase1_80k snapshots/BraTS18_phase2_115k
 
 echo "=========================================================="
-echo "MetaKD BraTS 2018 — 2-Phase Training"
+echo "MetaKD BraTS 2018  2-Phase Training"
 echo "Date: $(date)"
 echo "Host: $(hostname)"
 nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv
@@ -39,11 +39,13 @@ else
         --snapshot_dir "$PHASE1_SNAP/" \
         --reload_from_checkpoint False \
         --num_steps 80000 \
-        --val_pred_every 2000 \
+        --val_pred_every 100 \
         --batch_size 2 \
         --learning_rate 1e-2 \
+        --random_mirror True \
+        --random_scale True \
+        --random_seed 999 \
         --mode "0,1,2,3" \
-        --train_only \
         2>&1 | tee logs/brats_phase1.log
     echo ">>> Phase 1 completed at $(date)"
 fi
@@ -68,9 +70,12 @@ $PYTHON train.py \
     --reload_from_checkpoint True \
     --reload_path "$RELOAD_PATH" \
     --num_steps 115000 \
-    --val_pred_every 2000 \
+    --val_pred_every 500 \
     --batch_size 2 \
     --learning_rate 1e-2 \
+    --random_mirror True \
+    --random_scale True \
+    --random_seed 999 \
     --mode "random" \
     2>&1 | tee logs/brats_phase2.log
 

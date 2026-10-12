@@ -27,7 +27,7 @@ def get_arguments():
     parser = argparse.ArgumentParser(description="Shared-Specific model for 3D medical image segmentation.")
 
     parser.add_argument("--data_dir", type=str, default='./datalist/')
-    parser.add_argument("--data_list", type=str, default='BraTS20_test.csv',
+    parser.add_argument("--data_list", type=str, default='BraTS18/BraTS18_test.csv',
                         help="Path to the file listing the images in the dataset.")
     parser.add_argument("--input_size", type=str, default='80,160,160',
                         help="Comma-separated string with depth, height and width of sub-volumnes.")

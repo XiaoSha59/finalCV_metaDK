@@ -40,3 +40,9 @@ Thumbs.db
 venv/
 env/
 .env/
+
+# Data folders & temporary scratch files
+adni_flexmoe/
+adni_raw_flexmoe/
+scratch_*
+

@@ -1,0 +1,278 @@
+(a) Main task and KD training
+Encoder
+ Decoder
+y 
+Weighted Knowledge 
+Distillation Objective
+. . .
+. . .
+. . .
+Prediction 
+Objective
+label
+Weighted Knowledge 
+Distillation Objective
+EncoderEncoder
+. . .
+. . . . . .
+Missing Modality 
+Feature Generation
+. . .
+ Fixed
+Learnable
+⊕
+xNx2x1
+fNf1 f2
+fNf1 f2
+ kd
+(1,2)  kd
+(2,1)+
+w2
+w2 w1
+w1
+ Learnable
+ kd
+(2,N)  kd
+(N,2)+
+wN
+wN w2
+w2
+. . .
+xn
+fn
+. . .
+. . .
+fn
+(b) Importance weight vector training
+Encoder
+ Decoder
+y 
+. . .
+Prediction 
+Objectivelabel
+EncoderEncoder
+Missing Modality 
+Feature Generation
+ Fixed
+ Fixed
+ Learnable
+fN fNfN f2
+fNf1 f2
+*
+w1
+. . . xNx2x1 xn . . .
+. . . . . .⊕
+fn
+fn
+. . . . . .
+. . . . . .
+. . .
+*
+w2
+*
+wn
+*
+wN
+Iteratively
+Figure 2. MetaKD model framework for (a) main task and modality-weighted knowledge distillation training; (b) importance weight vector
+training. The two processes will be performed iteratively.
+In MIA, the HeMIS model was developed [17] to learn
+modality-specific embeddings, allowing statistical informa-
+tion (e.g., mean and variance) on these embeddings to pro-
+duce segmentations. Dorent et al. [11] extended HeMIS
+with a multi-modal variational auto-encoder (MV AE) that
+produced pixel-wise classifications from these embeddings.
+Similarly, auto-encoder structures have been used for un-
+supervised learning of missing modalities [6, 44]. Several
+other approaches [18, 42, 50] proposed the learning of miss-
+ing modality features from full modality models to enhance
+embeddings, while feature disentanglement methods [7, 48]
+separated shared and modality-specific features for better
+performance. A vision transformer model [55] was also in-
+troduced for multi-modal brain tumor segmentation, aiming
+to fuse features from all modalities into comprehensive rep-
+resentations.
+In CV , Yin et al. [52] proposed a model to learn a uni-
+fied subspace for incomplete multi-view data, while Al-
+banie et al. [1] developed a cross-modal transfer model to
+transfer knowledge between modalities. However, it cannot
+learn the modality importance automatically and only works
+for video-speech classification. Liu et al. [28] proposes
+a modality translation framework to address multimodal
+sentiment analysis under uncertain missing modalities, en-
+abling effective representation recovery and robust predic-
+tion even when some modalities are unavailable. Other
+models [2, 9, 20, 51, 56] addressed missing modalities, but
+were often task-specific or restricted to particular diseases,
+limiting broader applicability. Ma et al. [30] proposed the
+SMIL model, which employed a meta-learning algorithm to
+reconstruct features from missing modalities. Unlike SMIL,
+which uses meta-learning to handle missing modalities by
+updating two auxiliary networks, we apply meta-learning
+to train a set of modality importance weights for modality-
+weighted knowledge distillation1.
+Similarly to the multi-modal methods presented Sec. 2.1,
+the solutions mentioned above are task-specific and often
+neglect the fact that some modalities are more informative
+than others. Our proposed MetaKD aims to address these
+gaps by automatically identifying and distilling the knowl-
+edge from influential modalities to dramatically enhance
+the model performance, particularly when such influential
+modalities are not present in the input data. MetaKD is also
+designed to easily adapt to disparate tasks, such as classifi-
+cation or segmentation.
+1Also, we notice that in practice, SMIL has high memory complexity
+and exhibits unstable performance in missing modality scenarios.
+3
+--- PAGE 4 ---
+3. Methodology
+3.1. Model Structure
+Let us denote the N-modality data as Ml = {xl
+i}N
+i=1,
+where xl
+i∈X represents the lth data sample and the sub-
+scripti indexes the modality. The corresponding label for
+each setM is represented by yl∈Y , whereY denotes the
+ground-truth annotation space. To simplify the notation, we
+may omit the subscriptl when the context is clear.
+Our proposed MetaKD, illustrated in Fig. 2, consists of a
+two-stage meta-learning method. The first stage, shown in
+Fig. 2(a), consists of multiple teacher-student training pro-
+cesses, along with the main task optimization (e.g. classi-
+fication or segmentation), where for each pair of available
+modalities, we distill the knowledge from the teacher to the
+student using the ratio of their importance weights. The
+second stage, shown in Fig. 2(b), estimates the importance
+weight for each modality when training for the task rep-
+resented by the label y (note that it is possible that a sin-
+gle dataset has multiple sub-tasks, such as the three types
+of tumor segmentation in the BraTS2018 dataset [3, 32]).
+This modality importance weight indicates the “amount” of
+knowledge contained in that modality.
+As illustrated in Fig. 2, each non-missing modality xi
+is fed into the encoder, parameterized byθi, which extracts
+the feature fi, with
+fi =fθi (xi). (1)
+In order to simplify the model, the encoders’ parameters
+{θi}N
+i=1 are shared among all modalities. For the missing
+modalities in Eq. (1), let us assume that the modalities in
+Q⊂M are unavailable (i.e., all xn∈Q are represented
+by xn =∅), then the missing features from those modalities
+can be generated based on the available features, as follows:
+fn = 1
+N−|Q|
+X
+xi∈M\Q
+fθi (xi) (2)
+for all xn∈Q , with\ denoting the set subtraction operator.
+The features obtained from Eq. (1) or generated from
+Eq. (2) are concatenated and fed into the decoder, param-
+eterized byζ, to make predictions, as in:
+ˆy =fζ
+
+⊕N
+i=1fi
+
+, (3)
+where ˆy is the prediction, and⊕N
+i=1 is the concatenator op-
+erator of theN extracted features.
+3.2. Knowledge Distillation Meta-learning
+We formulate the training of MetaKD with a meta-learning
+bi-level optimization that contains a meta-parameter rep-
+resented by an importance weight vector (IWV) w =
+[w1,..., wN ]⊤∈ RN . The inner learning uses the training
+setDt ={(M, y)l}|Dt|
+l=1 to optimize the parameters of the
+model responsible to realize the main task of interest (e.g.,
+classification or segmentation), while the meta-parameters
+are estimated from the outer learning that optimizes a meta-
+objective with a validation setDv ={(M, y)l}|Dv|
+l=1 (where
+Dt
+TDv =∅, i.e.,Dt andDv are extracted from the same
+original training set, but they are mutually exclusive), as in:
+w∗ = arg min
+w
+X
+(M,y)∈Dv
+ℓmeta
+
+y,fζ∗
+
+⊕N
+i=1wi× f∗
+i
+
+s.t.θ∗,ζ∗ = arg min
+θ,ζ
+X
+(M,y)∈Dt
+"
+ℓtask
+
+y,fζ
+
+⊕N
+i=1fi
+
++α
+NX
+i,j=1
+w∗
+i
+w∗
+j
+×ℓ(i,j)
+kd (fi, fj)
+#
+,
+(4)
+where f∗
+i = fθ∗
+i (xi) or computed with (2) (similarly for
+fi = fθi (xi)),θ andζ are the learnable parameters of the
+model encoder and decoder, respectively, the loss functions
+ℓmeta(.) andℓtask(.) are represented by the same element-
+wise (pixel in 2D or voxel in 3D) cross-entropy loss plus
+Dice loss for segmentation and the cross-entropy loss for
+classification. Also in Eq. (4), we have the modality-
+weighted knowledge distillation loss defined as
+ℓkd(fi, fj) = δ(xi̸=∅)×δ(xj̸=∅)×∥ fi− fj∥p, (5)
+which is the p-norm of the difference between the encoder
+features of modalities i,j ∈ {1,...,N} (with δ(xi ̸= ∅)
+indicating that the modality i is present), with α being the
+trade-off factor between the ℓtask(.) and ℓkd(.) to balance
+the contribution of both losses to the modality-weighted
+knowledge distillation objective, and w∗
+i
+w∗
+j
+denoting the cost
+to penalize feature differences particularly with respect to
+the features from the modalities with large IWV . We need
+to normalize the importance weights for numerical stabil-
+ity; if not normalized, the scale differences between impor-
+tance elements may be learned to be huge as there is no
+constraint on it. If we use ReLU or sigmoid normalization
+for each element within IWV , the elements lose connection
+with each other as ReLU or sigmoid do not take all elements
+into consideration, which will, in turn, affect the gradient
+back-propagation. The influences of different normalization
+methods on model performance can be found in the Sup-
+plementary Material. Thus, we normalize the IWV weight
+vector with a softmax activation function which provides
+the best performance by keeping the relative importance of
+the modalities, with
+wi←ewi÷
+ NX
+j=1
+ewj
+!
+, fori = 1,...,N, (6)
+updated at each iteration of the optimization in Eq. (4).
+This knowledge distillation between pairs of teachers and
+students leads to a convergence of features to be close to
+4

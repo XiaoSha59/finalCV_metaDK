@@ -72,9 +72,9 @@ class ASPP(nn.Module):
         global_feature = torch.mean(x, [2, 3, 4], True)
         global_f = global_feature
         global_feature = self.branch5_conv(global_feature)
-        global_feature = F.interpolate(global_feature, (d, w, h), None, 'trilinear', True)
         global_feature = self.branch5_norm(global_feature)
         global_feature = self.branch5_nonlin(global_feature)
+        global_feature = F.interpolate(global_feature, (d, w, h), None, 'trilinear', True)
 
         feature_cat = torch.cat([conv1x1, conv3x3_1, conv3x3_2, conv3x3_3, global_feature], dim=1)
         result = self.conv_cat(feature_cat)
@@ -200,8 +200,7 @@ class KD_Weights(nn.Module):
 
     def forward(self, i, j):
         softmax_w = F.softmax(self.kd_weights, dim=0)
-        ratio = softmax_w[i] / (softmax_w[j] + 1e-4)
-        return torch.clamp(ratio, max=10.0)
+        return softmax_w[i] / softmax_w[j]
 
 
 class DualNet(nn.Module):
@@ -294,8 +293,7 @@ class DualNet(nn.Module):
                     ).mean(dim=(1, 2, 3, 4))
 
         logits = self.shared_dec(out_ft, _shared_layers)
-        pred_logits = torch.clamp(logits[0], min=-20.0, max=20.0)
 
         if val and ft_dist_switch:
             self.print_ft_dist(images)
-        return pred_logits, mode_split, totKDLoss.mean()
+        return logits[0], mode_split, totKDLoss.mean()

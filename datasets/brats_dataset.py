@@ -449,4 +449,6 @@ def my_collate(batch):
     data_dict = {'image': image, 'label': label}
     tr_transforms = get_train_transform(patch_size=image.shape[2:])
     data_dict = tr_transforms(**data_dict)
+    # border_cval_seg=-1 marks out-of-volume voxels; BCE/Dice are unbounded below on -1 targets
+    data_dict['label'] = np.clip(data_dict['label'], 0.0, 1.0)
     return data_dict

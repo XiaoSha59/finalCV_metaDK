@@ -69,12 +69,14 @@ def get_arguments():
     parser.add_argument("--train_only", action="store_true")
     parser.add_argument("--mode", type=str, default='0,1,2,3')
     parser.add_argument("--alpha", type=float, default=0.1)
+    parser.add_argument("--reset_optimizer", type=str2bool, default=False)
 
     return parser
 
 
 def lr_poly(base_lr, iter, max_iter, power):
-    return base_lr * ((1 - float(iter) / max_iter) ** (power))
+    decay = max(0.0, 1.0 - float(iter) / float(max_iter))
+    return base_lr * (decay ** power)
 
 
 def adjust_learning_rate(optimizer, i_iter, lr, num_steps, power):
@@ -218,10 +220,15 @@ def main():
             model = checkpoint['model']
             model.to(device)
             args.start_iters = checkpoint.get('iter', 0)
-            # Recreate clean optimizers — avoids stale momentum buffers from collapsed run
-            optimizer = torch.optim.SGD([p for n, p in model.named_parameters() if 'kd_weights' not in n], args.learning_rate, momentum=0.99, nesterov=True)
-            kd_optim = torch.optim.Adam(model.kd_weights.parameters(), args.learning_rate, weight_decay=args.weight_decay)
-            print("Loaded model trained for", args.start_iters, "iters (clean optimizer momentum)")
+            if args.reset_optimizer or 'optimizer' not in checkpoint:
+                # Recovery only (e.g. a collapsed run); the author's pipeline keeps optimizer state
+                optimizer = torch.optim.SGD([p for n, p in model.named_parameters() if 'kd_weights' not in n], args.learning_rate, momentum=0.99, nesterov=True)
+                kd_optim = torch.optim.Adam(model.kd_weights.parameters(), args.learning_rate, weight_decay=args.weight_decay)
+                print("Loaded model trained for", args.start_iters, "iters (fresh optimizer state)")
+            else:
+                optimizer = checkpoint['optimizer']
+                kd_optim = checkpoint['kd_optim']
+                print("Loaded model trained for", args.start_iters, "iters (optimizer state restored)")
         else:
             print('File does not exist in the reload path: {}'.format(args.reload_path))
             exit(0)
@@ -254,20 +261,21 @@ def main():
     val_dataset = BraTSDataSet(
         args.data_dir,
         args.val_list,
-        max_iters=None,
+        max_iters=20,
         crop_size=input_size,
-        scale=False,
-        mirror=False
+        scale=args.random_scale,
+        mirror=args.random_mirror
     )
     valloader = torch.utils.data.DataLoader(
         val_dataset,
         batch_size=1,
-        shuffle=False,
+        shuffle=True,
         num_workers=args.num_workers,
         pin_memory=True,
-        collate_fn=val_collate
+        collate_fn=my_collate
     )
 
+    val_Dice_best = -999999.0
     kdLoss_wt = args.alpha
 
     for i_iter, batch in enumerate(trainloader):
@@ -288,7 +296,6 @@ def main():
             term_all = term_seg_Dice + term_seg_BCE + kdLoss_wt * totKDLoss
             term_all.backward()
 
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)
             optimizer.step()
 
             if i_iter % 100 == 0 and (args.local_rank == 0):
@@ -321,16 +328,29 @@ def main():
                 torch.save(checkpoint, osp.join(args.snapshot_dir, 'last.pth'))
 
             # val and identify the best modality for each tumor
-            if not args.train_only and i_iter % args.val_pred_every == 0:
+            if not args.train_only and i_iter != 0 and i_iter % args.val_pred_every == 0:
                 print('validate ...')
                 val_start = timeit.default_timer()
                 val_ET, val_WT, val_TC = validate(args, input_size, model, valloader, args.num_classes, args.mode, loss_D, loss_BCE, kd_optim)
+                val_avg_Dice = (val_ET + val_WT + val_TC) / 3.0
                 if (args.local_rank == 0):
                     writer.add_scalar('Val_ET_Dice', val_ET, i_iter)
                     writer.add_scalar('Val_WT_Dice', val_WT, i_iter)
                     writer.add_scalar('Val_TC_Dice', val_TC, i_iter)
-                    print('Validate iter = {}, ET = {:.4f}, WT = {:.4f}, TC = {:.4f}'.format(i_iter, val_ET, val_WT, val_TC))
+                    writer.add_scalar('Val_Avg_Dice', val_avg_Dice, i_iter)
+                    print('Validate iter = {}, ET = {:.4f}, WT = {:.4f}, TC = {:.4f}, Avg = {:.4f}'.format(i_iter, val_ET, val_WT, val_TC, val_avg_Dice))
                     print('IWV (softmax):', model.kd_weights.get_kdWeights().detach().cpu().numpy())
+                    if val_avg_Dice > val_Dice_best:
+                        val_Dice_best = val_avg_Dice
+                        print('>>> [NEW BEST MODEL] Avg Dice: {:.4f} at iter {} -> Saving best_model.pth <<<'.format(val_Dice_best, i_iter))
+                        best_checkpoint = {
+                            'model': model,
+                            'optimizer': optimizer,
+                            'kd_optim': kd_optim,
+                            'iter': i_iter,
+                            'best_val_dice': val_Dice_best
+                        }
+                        torch.save(best_checkpoint, osp.join(args.snapshot_dir, 'best_model.pth'))
                 val_end = timeit.default_timer()
                 print('val one iter', val_end - val_start, 'seconds')
 

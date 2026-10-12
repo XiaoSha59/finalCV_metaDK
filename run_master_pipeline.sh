@@ -32,14 +32,29 @@ echo ">>> [1/2] BraTS 2018 — 2-Phase MetaKD Training"
 echo "=========================================================="
 bash run_brats_2phase.sh
 
-echo ">>> [1/2] BraTS 2018 COMPLETED at $(date)"
+echo ">>> [1/3] BraTS 2018 Training COMPLETED at $(date)"
+
+# ----------------------------------------------------------
+# STEP 1.5: BraTS 2018 — 15-Modality Benchmark (Table 1 Reproduction)
+# ----------------------------------------------------------
+echo ""
+echo "=========================================================="
+echo ">>> [1.5/3] BraTS 2018 — 15-Modality Evaluation (Table 1)"
+echo "=========================================================="
+if [ ! -f "logs/brats_table1_results.csv" ]; then
+    bash run_eval_pipeline.sh
+else
+    echo "BraTS Benchmark already done. (Found logs/brats_table1_results.csv)"
+fi
+
+echo ">>> [1.5/3] BraTS 2018 Evaluation COMPLETED at $(date)"
 
 # ----------------------------------------------------------
 # STEP 2: ADNI Multimodal Benchmark (Table 2 Reproduction)
 # ----------------------------------------------------------
 echo ""
 echo "=========================================================="
-echo ">>> [2/2] ADNI Multimodal Training & Benchmark"
+echo ">>> [2/3] ADNI Multimodal Training & Benchmark"
 echo "=========================================================="
 if [ ! -f "logs/adni_table2_results.csv" ]; then
     $PYTHON -u run_adni_pipeline.py 2>&1 | tee logs/adni_train.log
@@ -47,14 +62,14 @@ else
     echo "ADNI Benchmark already done. (Found logs/adni_table2_results.csv)"
 fi
 
-echo ">>> [2/2] ADNI COMPLETED at $(date)"
+echo ">>> [2/3] ADNI COMPLETED at $(date)"
 
 # ----------------------------------------------------------
 # STEP 3: Automatic VM Shutdown
 # ----------------------------------------------------------
 echo ""
 echo "=========================================================="
-echo "ALL TASKS FINISHED at $(date)!"
+echo ">>> [3/3] ALL TASKS FINISHED at $(date)!"
 echo "Shutting down VM in 30 seconds..."
 echo "=========================================================="
 sleep 30
