@@ -200,7 +200,8 @@ class KD_Weights(nn.Module):
 
     def forward(self, i, j):
         softmax_w = F.softmax(self.kd_weights, dim=0)
-        return softmax_w[i] / softmax_w[j]
+        ratio = softmax_w[i] / (softmax_w[j] + 1e-4)
+        return torch.clamp(ratio, max=10.0)
 
 
 class DualNet(nn.Module):
@@ -293,7 +294,8 @@ class DualNet(nn.Module):
                     ).mean(dim=(1, 2, 3, 4))
 
         logits = self.shared_dec(out_ft, _shared_layers)
+        pred_logits = torch.clamp(logits[0], min=-20.0, max=20.0)
 
         if val and ft_dist_switch:
             self.print_ft_dist(images)
-        return logits[0], mode_split, totKDLoss.mean()
+        return pred_logits, mode_split, totKDLoss.mean()

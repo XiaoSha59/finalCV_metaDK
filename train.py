@@ -16,7 +16,7 @@ from math import ceil
 from tensorboardX import SummaryWriter
 
 from models import DualNet, conv3x3x3
-from datasets import BraTSDataSet, BraTSValDataSet, my_collate
+from datasets import BraTSDataSet, BraTSValDataSet, my_collate, val_collate
 import losses as loss
 
 start = timeit.default_timer()
@@ -50,7 +50,7 @@ def get_arguments():
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument("--num_steps", type=int, default=115000)
     parser.add_argument("--start_iters", type=int, default=0)
-    parser.add_argument("--val_pred_every", type=int, default=100)
+    parser.add_argument("--val_pred_every", type=int, default=2000)
     parser.add_argument("--learning_rate", type=float, default=1e-2)
     parser.add_argument("--num_classes", type=int, default=3)
     parser.add_argument("--num_workers", type=int, default=4)
@@ -85,30 +85,24 @@ def adjust_learning_rate(optimizer, i_iter, lr, num_steps, power):
 
 def dice_score(preds, labels):
     assert preds.shape[0] == labels.shape[0], "predict & target batch size don't match"
-    predict = preds.contiguous().view(preds.shape[0], -1)
-    target = labels.contiguous().view(labels.shape[0], -1)
+    predict = torch.clamp(preds.contiguous().view(preds.shape[0], -1), 0.0, 1.0)
+    target = torch.clamp(labels.contiguous().view(labels.shape[0], -1), 0.0, 1.0)
 
     num = torch.sum(torch.mul(predict, target), dim=1)
-    den = torch.sum(predict, dim=1) + torch.sum(target, dim=1) + 1
+    den = torch.sum(predict, dim=1) + torch.sum(target, dim=1) + 1e-5
 
-    dice = 2*num / den
-
+    dice = (2.0 * num + 1e-5) / den
     return dice.mean()
 
 
 def compute_dice_score(preds, labels):
+    probs = torch.sigmoid(preds)
+    pred_bin = (probs > 0.5).float()
+    labels = torch.clamp(labels, 0.0, 1.0)
 
-    preds = F.sigmoid(preds)
-
-    pred_ET = preds[:, 0, :, :, :]
-    pred_WT = preds[:, 1, :, :, :]
-    pred_TC = preds[:, 2, :, :, :]
-    label_ET = labels[:, 0, :, :, :]
-    label_WT = labels[:, 1, :, :, :]
-    label_TC = labels[:, 2, :, :, :]
-    dice_ET = dice_score(pred_ET, label_ET).cpu().data.numpy()
-    dice_WT = dice_score(pred_WT, label_WT).cpu().data.numpy()
-    dice_TC = dice_score(pred_TC, label_TC).cpu().data.numpy()
+    dice_ET = dice_score(pred_bin[:, 0], labels[:, 0]).cpu().data.numpy()
+    dice_WT = dice_score(pred_bin[:, 1], labels[:, 1]).cpu().data.numpy()
+    dice_TC = dice_score(pred_bin[:, 2], labels[:, 2]).cpu().data.numpy()
     return dice_ET, dice_WT, dice_TC
 
 
@@ -182,9 +176,13 @@ def validate(args, input_size, model, ValLoader, num_classes, modes, loss_D, los
         validation_Dice_loss += val_Dice.item()
         validation_BCE_loss += val_BCE.item()
 
+        del pred, val_loss, val_Dice, val_BCE, image, label
+        torch.cuda.empty_cache()
+
     print('Printing Validation Loss:')
     print('validation_loss:', validation_loss/(index+1), 'validation_Dice_loss:', validation_Dice_loss/(index+1),
           'validation_BCE_loss:', validation_BCE_loss/(index+1))
+    torch.cuda.empty_cache()
 
     return val_ET/(index+1), val_WT/(index+1), val_TC/(index+1)
 
@@ -219,12 +217,13 @@ def main():
     if args.reload_from_checkpoint:
         print('loading from checkpoint: {}'.format(args.reload_path))
         if os.path.exists(args.reload_path):
-            checkpoint = torch.load(args.reload_path)
+            checkpoint = torch.load(args.reload_path, weights_only=False)
             model = checkpoint['model']
-            optimizer = checkpoint['optimizer']
-            kd_optim = checkpoint['kd_optim']
             args.start_iters = checkpoint.get('iter', 0)
-            print("Loaded model trained for", args.start_iters, "iters")
+            # Recreate clean optimizers with clean momentum buffers
+            optimizer = torch.optim.SGD([p for n, p in model.named_parameters() if 'kd_weights' not in n], args.learning_rate, momentum=0.99, nesterov=True)
+            kd_optim = torch.optim.Adam(model.kd_weights.parameters(), args.learning_rate, weight_decay=args.weight_decay)
+            print("Loaded model trained for", args.start_iters, "iters with clean optimizer momentum")
         else:
             print('File does not exist in the reload path: {}'.format(args.reload_path))
             exit(0)
@@ -268,7 +267,7 @@ def main():
         shuffle=False,
         num_workers=args.num_workers,
         pin_memory=True,
-        collate_fn=my_collate
+        collate_fn=val_collate
     )
 
     val_Dice_best = -999999
