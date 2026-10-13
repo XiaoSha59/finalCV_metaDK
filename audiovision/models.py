@@ -1,125 +1,150 @@
+"""SMIL backbones (LeNet-5, SNetPluse) plus the MetaKD fusion head.
+
+Image and sound conv stacks follow deep-real/SMIL:
+https://github.com/deep-real/SMIL/blob/main/src/models/lenet5.py
+https://github.com/deep-real/SMIL/blob/main/src/models/snet.py
+https://github.com/deep-real/SMIL/blob/main/src/models/soundlenet5.py
+
+SMIL concatenates a 160-d image feature with a 320-d sound feature.
+MetaKD Eq. (2) and Eq. (5) need equal feature sizes, so the sound
+encoder keeps SNetPluse.fc1 (320 -> 160). Both modality features are
+then 160-d, which is the tensor immediately before the two fusion FC
+layers. The fusion head keeps SMIL's width and dropout: Linear 64,
+dropout 0.6, Linear 10.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class ImageEncoder(nn.Module):
-    """
-    SMIL Image Encoder Backbone for 28x28 MNIST Images:
-    Conv layers with BatchNorm, ReLU, MaxPool, Dropout + FC layers.
-    """
-    def __init__(self, in_channels: int = 1, feat_dim: int = 128):
+    """SMIL LeNet-5 conv stack. Output is 160-d, before any classifier FC."""
+
+    def __init__(self):
         super(ImageEncoder, self).__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, 16, kernel_size=3, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout(0.2)
-        )
-        self.fc = nn.Sequential(
-            nn.Linear(32 * 7 * 7, 128),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
-            nn.Linear(128, feat_dim),
-            nn.ReLU(inplace=True)
-        )
+        self.conv1 = nn.Conv2d(1, 5, kernel_size=5)
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.conv2 = nn.Conv2d(5, 10, kernel_size=5)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.dropout = nn.Dropout(p=0.5)
+        self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        feat = self.conv(x)
-        feat = feat.view(feat.size(0), -1)
-        return self.fc(feat)
+        x = self.relu(self.pool1(self.conv1(x)))
+        x = self.conv2(x)
+        x = self.dropout(x)
+        x = self.relu(self.pool2(x))
+        return x.view(x.size(0), -1)
 
 
 class AudioEncoder(nn.Module):
-    """
-    SMIL Sound Encoder Backbone for 20x20 Audio MFCCs:
-    Conv layers with BatchNorm, ReLU, MaxPool, Dropout + FC layers.
-    """
-    def __init__(self, in_channels: int = 1, feat_dim: int = 128):
+    """SMIL SNetPluse conv stack plus fc1, mapping 20x20 MFCCs to 160-d."""
+
+    def __init__(self):
         super(AudioEncoder, self).__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(in_channels, 16, kernel_size=3, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2, 2),
-            nn.Dropout(0.2)
-        )
-        self.fc = nn.Sequential(
-            nn.Linear(32 * 5 * 5, 128),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
-            nn.Linear(128, feat_dim),
-            nn.ReLU(inplace=True)
-        )
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=2)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(32, 48, kernel_size=2)
+        self.bn2 = nn.BatchNorm2d(48)
+        self.conv3 = nn.Conv2d(48, 20, kernel_size=2)
+        self.bn3 = nn.BatchNorm2d(20)
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=4)
+        self.fc1 = nn.Linear(320, 160)
+        self.dropout1 = nn.Dropout(p=0.25)
+        self.relu = nn.ReLU(inplace=True)
+
+    def conv_feature(self, x: torch.Tensor) -> torch.Tensor:
+        """320-d map SMIL concatenates in SoundLenet5, taken before fc1."""
+        x = self.relu(self.bn1(self.conv1(x)))
+        x = self.relu(self.bn2(self.conv2(x)))
+        x = self.relu(self.bn3(self.conv3(x)))
+        x = self.pool3(x)
+        x = self.dropout1(x)
+        return x.view(x.size(0), -1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        feat = self.conv(x)
-        feat = feat.view(feat.size(0), -1)
-        return self.fc(feat)
+        x = self.fc1(self.conv_feature(x))
+        x = self.dropout1(x)
+        return self.relu(x)
+
+
+class LeNet5(nn.Module):
+    """SMIL image-only classifier. Table 3 LowerB for missing audio."""
+
+    def __init__(self):
+        super(LeNet5, self).__init__()
+        self.encoder = ImageEncoder()
+        self.fc1 = nn.Linear(160, 32)
+        self.fc2 = nn.Linear(32, 10)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        feat = self.encoder(x)
+        hidden = self.relu(self.fc1(feat))
+        return self.fc2(hidden)
+
+
+class SNetPluse(nn.Module):
+    """SMIL audio-only classifier. Table 3 LowerB for missing visual."""
+
+    def __init__(self):
+        super(SNetPluse, self).__init__()
+        self.encoder = AudioEncoder()
+        self.fc2 = nn.Linear(160, 32)
+        self.fc3 = nn.Linear(32, 10)
+        self.dropout2 = nn.Dropout(p=0.4)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        feat = self.encoder(x)
+        hidden = self.relu(self.dropout2(self.fc2(feat)))
+        return self.fc3(hidden)
 
 
 class KDWeights2D(nn.Module):
-    """
-    Learnable MetaKD Modality Importance Weight Vector (IWV) w = [w_v, w_a]^T.
-    Normalized via Softmax as specified in Eq. (6) and Table 6.
-    """
+    """Modality importance logits. Eq. (6) applies softmax at every use."""
+
     def __init__(self):
         super(KDWeights2D, self).__init__()
-        # Initialized equally for visual and audio
-        self.weights = nn.Parameter(torch.tensor([1.0, 1.0], dtype=torch.float32))
+        self.weights = nn.Parameter(torch.randn(2) * 0.01)
 
     def forward(self) -> torch.Tensor:
         return F.softmax(self.weights, dim=0)
 
 
+def _pairwise_l1(img_feat: torch.Tensor, aud_feat: torch.Tensor, w_v: torch.Tensor, w_a: torch.Tensor) -> torch.Tensor:
+    """Eq. (5): L1 distance between paired features, weighted in both directions."""
+    distance = F.l1_loss(img_feat, aud_feat)
+    return (w_v / (w_a + 1e-6) + w_a / (w_v + 1e-6)) * distance
+
+
 class MetaKDAudioVision(nn.Module):
+    """MetaKD on SMIL Audiovision features.
+
+    Task loss uses the concatenated modality features. The meta step uses
+    the same features scaled by the importance weights, Eq. (4). Missing
+    features are the mean of the available ones, Eq. (2). With one modality
+    left, that mean is the remaining feature.
     """
-    MetaKD Framework for AudioVision-MNIST Digit Classification (Paper Protocol).
-    - ImageEncoder & AudioEncoder
-    - Meta-Learned Importance Weight Vector (IWV) with Softmax
-    - L1 Cross-modal Distillation Loss
-    - Mean Feature Imputation (Eq. 2) for missing modalities
-    """
-    def __init__(self, num_classes: int = 10, feat_dim: int = 128):
+
+    def __init__(self, num_classes: int = 10):
         super(MetaKDAudioVision, self).__init__()
-        self.num_classes = num_classes
-        self.feat_dim = feat_dim
-
-        # Modality Encoders
-        self.img_enc = ImageEncoder(in_channels=1, feat_dim=feat_dim)
-        self.aud_enc = AudioEncoder(in_channels=1, feat_dim=feat_dim)
-
-        # Learnable MetaKD distillation IWV weights
+        self.img_enc = ImageEncoder()
+        self.aud_enc = AudioEncoder()
         self.kd_weights = KDWeights2D()
+        self.fc1 = nn.Linear(320, 64)
+        self.fc2 = nn.Linear(64, num_classes)
+        self.dropout = nn.Dropout(p=0.6)
+        self.relu = nn.ReLU(inplace=True)
 
-        # Classification Heads (2 FC layers with dropout as specified in paper)
-        self.img_classifier = nn.Sequential(
-            nn.Linear(feat_dim, 64),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
-            nn.Linear(64, num_classes)
-        )
-        self.aud_classifier = nn.Sequential(
-            nn.Linear(feat_dim, 64),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
-            nn.Linear(64, num_classes)
-        )
-        self.fusion_classifier = nn.Sequential(
-            nn.Linear(feat_dim * 2, 128),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.2),
-            nn.Linear(128, num_classes)
-        )
+    def encode(self, images: torch.Tensor, audios: torch.Tensor):
+        return self.img_enc(images), self.aud_enc(audios)
+
+    def fuse(self, img_feat: torch.Tensor, aud_feat: torch.Tensor) -> torch.Tensor:
+        fused = torch.cat([img_feat, aud_feat], dim=-1)
+        hidden = self.dropout(self.relu(self.fc1(fused)))
+        return self.fc2(hidden)
 
     def forward(
         self,
@@ -127,63 +152,42 @@ class MetaKDAudioVision(nn.Module):
         audios: torch.Tensor = None,
         visual_mask: torch.Tensor = None,
         audio_mask: torch.Tensor = None,
-        eval_mode: str = "full"
+        eval_mode: str = "full",
     ):
-        img_feat = self.img_enc(images) if images is not None else None
-        aud_feat = self.aud_enc(audios) if audios is not None else None
-
-        # Eq. 2: Feature Imputation during Single-Modality Inference / Testing
         if eval_mode == "image_only":
-            imputed_aud_feat = img_feat
-            fused_feat = torch.cat([img_feat, imputed_aud_feat], dim=-1)
-            logits = self.fusion_classifier(fused_feat)
-            return logits, torch.tensor(0.0, device=images.device)
+            img_feat = self.img_enc(images)
+            return self.fuse(img_feat, img_feat), img_feat.new_zeros(())
 
         if eval_mode == "audio_only":
-            imputed_img_feat = aud_feat
-            fused_feat = torch.cat([imputed_img_feat, aud_feat], dim=-1)
-            logits = self.fusion_classifier(fused_feat)
-            return logits, torch.tensor(0.0, device=audios.device)
+            aud_feat = self.aud_enc(audios)
+            return self.fuse(aud_feat, aud_feat), aud_feat.new_zeros(())
 
-        # Eq. 4: Meta-Validation objective weighted by IWV w_i * f_i
-        iwv = self.kd_weights()
-        w_v, w_a = iwv[0], iwv[1]
+        img_feat, aud_feat = self.encode(images, audios)
+        weights = self.kd_weights()
 
         if eval_mode == "meta_val":
-            fused_feat = torch.cat([w_v * img_feat, w_a * aud_feat], dim=-1)
-            logits = self.fusion_classifier(fused_feat)
-            return logits, img_feat, aud_feat, torch.tensor(0.0, device=images.device)
+            logits = self.fuse(weights[0] * img_feat, weights[1] * aud_feat)
+            return logits, img_feat.new_zeros(())
 
-        # Compute Cross-modal Knowledge Distillation Loss using IWV ratio & L1 loss (Eq. 5 & 6)
-        ratio_v2a = (w_v / (w_a + 1e-6)).clamp(max=10.0)
-        ratio_a2v = (w_a / (w_v + 1e-6)).clamp(max=10.0)
-
-        device = images.device if images is not None else audios.device
-        kd_loss = torch.tensor(0.0, device=device)
+        weights = weights.detach()
+        w_v, w_a = weights[0], weights[1]
+        kd_loss = img_feat.new_zeros(())
 
         if visual_mask is not None and audio_mask is not None:
-            valid_pair = (visual_mask & audio_mask)
-            if valid_pair.sum() > 0:
-                diff_v2a = F.l1_loss(aud_feat[valid_pair], img_feat[valid_pair].detach())
-                diff_a2v = F.l1_loss(img_feat[valid_pair], aud_feat[valid_pair].detach())
-                kd_loss = ratio_v2a * diff_v2a + ratio_a2v * diff_a2v
+            paired = visual_mask & audio_mask
+            if paired.any():
+                kd_loss = _pairwise_l1(img_feat[paired], aud_feat[paired], w_v, w_a)
+
+            eff_img = img_feat.clone()
+            eff_aud = aud_feat.clone()
+            missing_visual = ~visual_mask
+            missing_audio = ~audio_mask
+            if missing_visual.any():
+                eff_img[missing_visual] = aud_feat[missing_visual]
+            if missing_audio.any():
+                eff_aud[missing_audio] = img_feat[missing_audio]
         else:
-            diff_v2a = F.l1_loss(aud_feat, img_feat.detach())
-            diff_a2v = F.l1_loss(img_feat, aud_feat.detach())
-            kd_loss = ratio_v2a * diff_v2a + ratio_a2v * diff_a2v
+            kd_loss = _pairwise_l1(img_feat, aud_feat, w_v, w_a)
+            eff_img, eff_aud = img_feat, aud_feat
 
-        # Feature imputation for partial samples in batch (Eq. 2)
-        if visual_mask is not None and audio_mask is not None:
-            eff_img_feat = img_feat.clone()
-            eff_aud_feat = aud_feat.clone()
-            eff_img_feat[~visual_mask] = aud_feat[~visual_mask].detach()
-            eff_aud_feat[~audio_mask] = img_feat[~audio_mask].detach()
-            fused_feat = torch.cat([eff_img_feat, eff_aud_feat], dim=-1)
-        else:
-            fused_feat = torch.cat([img_feat, aud_feat], dim=-1)
-
-        logits = self.fusion_classifier(fused_feat)
-        img_logits = self.img_classifier(img_feat)
-        aud_logits = self.aud_classifier(aud_feat)
-
-        return logits, img_logits, aud_logits, kd_loss
+        return self.fuse(eff_img, eff_aud), kd_loss

@@ -9,7 +9,6 @@ __pycache__/
 *.ckpt
 snapshots/
 checkpoints/
-audiovision/checkpoints/
 adni/checkpoints/
 adni/data_processed/
 
@@ -26,6 +25,15 @@ logs/
 # Cloud runner and background scripts
 metakd.service
 run_auto_train.sh
+
+# Finalized AudioVision Table 3 checkpoints stay in the repo.
+!audiovision/checkpoints/
+audiovision/checkpoints/*
+!audiovision/checkpoints/lower_image.pth
+!audiovision/checkpoints/lower_audio.pth
+!audiovision/checkpoints/upper_full.pth
+!audiovision/checkpoints/metakd_audio_rate_*.pth
+!audiovision/checkpoints/metakd_visual_rate_*.pth
 
 # IDE and OS files
 .vscode/
