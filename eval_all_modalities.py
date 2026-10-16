@@ -4,6 +4,7 @@ import sys
 import csv
 from math import ceil
 import numpy as np
+import nibabel as nib
 import torch
 import torch.nn as nn
 from torch.utils import data
@@ -11,6 +12,7 @@ from torch.utils import data
 from models import DualNet
 from datasets import BraTSEvalDataSet
 from utils.metrics import dice_score
+from utils.postprocess import continues_region_extract, regions_to_label, label_to_regions
 
 MODES_15 = [
     ('0',       'Flair only'),
@@ -111,7 +113,54 @@ def get_arguments():
     parser.add_argument("--norm_cfg", type=str, default='IN')
     parser.add_argument("--activation_cfg", type=str, default='LeakyReLU')
     parser.add_argument("--output_csv", type=str, default='logs/brats_table1_results.csv')
+    parser.add_argument("--postprocess", type=lambda v: v.lower() in ('true', '1', 'yes', 'y', 't'), default=True,
+                        help="Also report Dice after the author's postprocess (written to *_postproc.csv)")
     return parser.parse_args()
+
+
+def report(results_table, title, csv_path):
+    header = f"{'Modalities':<22} | {'ET Our':<8} {'ET Pap':<8} {'Diff':<8} | {'TC Our':<8} {'TC Pap':<8} {'Diff':<8} | {'WT Our':<8} {'WT Pap':<8} {'Diff':<8} | {'Avg Our':<8} {'Avg Pap':<8}"
+    divider = "=" * len(header)
+    print("\n" + divider)
+    print(title)
+    print(divider)
+    print(header)
+    print("-" * len(header))
+    for r in results_table:
+        print(f"{r['desc']:<22} | {r['our_et']:<8.2f} {r['paper_et']:<8.2f} {r['diff_et']:+6.2f}% | {r['our_tc']:<8.2f} {r['paper_tc']:<8.2f} {r['diff_tc']:+6.2f}% | {r['our_wt']:<8.2f} {r['paper_wt']:<8.2f} {r['diff_wt']:+6.2f}% | {r['our_avg']:<8.2f} {r['paper_avg']:<8.2f}")
+
+    mean = {k: np.mean([r[k] for r in results_table]) for k in
+            ('our_et', 'paper_et', 'our_tc', 'paper_tc', 'our_wt', 'paper_wt', 'our_avg', 'paper_avg')}
+    print("-" * len(header))
+    print(f"{'AVERAGE (15 combos)':<22} | {mean['our_et']:<8.2f} {mean['paper_et']:<8.2f} {mean['our_et']-mean['paper_et']:+6.2f}% | {mean['our_tc']:<8.2f} {mean['paper_tc']:<8.2f} {mean['our_tc']-mean['paper_tc']:+6.2f}% | {mean['our_wt']:<8.2f} {mean['paper_wt']:<8.2f} {mean['our_wt']-mean['paper_wt']:+6.2f}% | {mean['our_avg']:<8.2f} {mean['paper_avg']:<8.2f}")
+    print(divider + "\n")
+
+    with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Mode', 'Description', 'Our_ET', 'Paper_ET', 'Diff_ET', 'Our_TC', 'Paper_TC', 'Diff_TC', 'Our_WT', 'Paper_WT', 'Diff_WT', 'Our_Avg', 'Paper_Avg'])
+        for r in results_table:
+            writer.writerow([r['mode'], r['desc'], f"{r['our_et']:.2f}", f"{r['paper_et']:.2f}", f"{r['diff_et']:+.2f}",
+                             f"{r['our_tc']:.2f}", f"{r['paper_tc']:.2f}", f"{r['diff_tc']:+.2f}",
+                             f"{r['our_wt']:.2f}", f"{r['paper_wt']:.2f}", f"{r['diff_wt']:+.2f}",
+                             f"{r['our_avg']:.2f}", f"{r['paper_avg']:.2f}"])
+        writer.writerow(['Average', 'Overall 15 Modalities', f"{mean['our_et']:.2f}", f"{mean['paper_et']:.2f}", f"{mean['our_et']-mean['paper_et']:+.2f}",
+                         f"{mean['our_tc']:.2f}", f"{mean['paper_tc']:.2f}", f"{mean['our_tc']-mean['paper_tc']:+.2f}",
+                         f"{mean['our_wt']:.2f}", f"{mean['paper_wt']:.2f}", f"{mean['our_wt']-mean['paper_wt']:+.2f}",
+                         f"{mean['our_avg']:.2f}", f"{mean['paper_avg']:.2f}"])
+    print(f"Results exported to: {csv_path}")
+
+
+def make_row(mode_str, mode_desc, et_list, tc_list, wt_list):
+    our = {'et': float(np.mean(et_list)) * 100.0, 'tc': float(np.mean(tc_list)) * 100.0, 'wt': float(np.mean(wt_list)) * 100.0}
+    pap = {'et': PAPER_TABLE_1[mode_str]['ET'], 'tc': PAPER_TABLE_1[mode_str]['TC'], 'wt': PAPER_TABLE_1[mode_str]['WT']}
+    return {
+        'mode': mode_str, 'desc': mode_desc,
+        'our_et': our['et'], 'paper_et': pap['et'], 'diff_et': our['et'] - pap['et'],
+        'our_tc': our['tc'], 'paper_tc': pap['tc'], 'diff_tc': our['tc'] - pap['tc'],
+        'our_wt': our['wt'], 'paper_wt': pap['wt'], 'diff_wt': our['wt'] - pap['wt'],
+        'our_avg': (our['et'] + our['tc'] + our['wt']) / 3.0,
+        'paper_avg': (pap['et'] + pap['tc'] + pap['wt']) / 3.0,
+    }
 
 def main():
     args = get_arguments()
@@ -135,26 +184,18 @@ def main():
     if torch.cuda.is_available():
         model.cuda()
 
-    testloader = data.DataLoader(
-        BraTSEvalDataSet(args.data_dir, args.data_list),
-        batch_size=1, shuffle=False, pin_memory=True
-    )
+    test_dataset = BraTSEvalDataSet(args.data_dir, args.data_list)
+    testloader = data.DataLoader(test_dataset, batch_size=1, shuffle=False, pin_memory=True)
     print(f"Loaded test dataset: {len(testloader)} cases.")
 
-    results_table = []
-    os.makedirs(os.path.dirname(args.output_csv), exist_ok=True)
-
-    header = f"{'Modalities':<22} | {'ET Our':<8} {'ET Pap':<8} {'Diff':<8} | {'TC Our':<8} {'TC Pap':<8} {'Diff':<8} | {'WT Our':<8} {'WT Pap':<8} {'Diff':<8} | {'Avg Our':<8} {'Avg Pap':<8}"
-    divider = "=" * len(header)
-    print("\n" + divider)
-    print("🏆 BRATS 2018 EVALUATION VS PAPER TABLE 1")
-    print(divider)
-    print(header)
-    print("-" * len(header))
+    results_table, results_table_pp = [], []
+    os.makedirs(os.path.dirname(args.output_csv) or '.', exist_ok=True)
 
     for mode_str, mode_desc in MODES_15:
         args.mode = mode_str
+        has_t1ce = '2' in mode_str.split(',')
         dice_ET_list, dice_WT_list, dice_TC_list = [], [], []
+        pp_ET_list, pp_WT_list, pp_TC_list = [], [], []
 
         for index, batch in enumerate(testloader):
             if len(batch) == 6:
@@ -178,63 +219,35 @@ def main():
             dice_WT_list.append(d_WT)
             dice_TC_list.append(d_TC)
 
+            if args.postprocess:
+                # postprocess runs in NIfTI orientation (H, W, D), like the author's saved predictions
+                seg = regions_to_label(seg_pred_3class[:, :, :, 0], seg_pred_3class[:, :, :, 1],
+                                       seg_pred_3class[:, :, :, 2]).transpose((1, 2, 0))
+                mr = np.asarray(nib.load(test_dataset.files[index]["t1ce"]).dataobj) if has_t1ce else None
+                seg = continues_region_extract(seg, mr, name[0]).transpose((2, 0, 1))
+                pp_et, pp_wt, pp_tc = label_to_regions(seg)
+                pp_ET_list.append(dice_score(pp_et, seg_gt[0]))
+                pp_WT_list.append(dice_score(pp_wt, seg_gt[1]))
+                pp_TC_list.append(dice_score(pp_tc, seg_gt[2]))
+                del seg, mr
+
             del output, seg_pred_3class, seg_gt
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-        avg_et = float(np.mean(dice_ET_list)) * 100.0
-        avg_tc = float(np.mean(dice_TC_list)) * 100.0
-        avg_wt = float(np.mean(dice_WT_list)) * 100.0
-        avg_our = (avg_et + avg_tc + avg_wt) / 3.0
+        row = make_row(mode_str, mode_desc, dice_ET_list, dice_TC_list, dice_WT_list)
+        results_table.append(row)
+        msg = f"{mode_desc:<22} | raw ET {row['our_et']:.2f} TC {row['our_tc']:.2f} WT {row['our_wt']:.2f}"
+        if args.postprocess:
+            row_pp = make_row(mode_str, mode_desc, pp_ET_list, pp_TC_list, pp_WT_list)
+            results_table_pp.append(row_pp)
+            msg += f" | post ET {row_pp['our_et']:.2f} TC {row_pp['our_tc']:.2f} WT {row_pp['our_wt']:.2f}"
+        print(msg, flush=True)
 
-        p_et = PAPER_TABLE_1[mode_str]['ET']
-        p_tc = PAPER_TABLE_1[mode_str]['TC']
-        p_wt = PAPER_TABLE_1[mode_str]['WT']
-        p_avg = (p_et + p_tc + p_wt) / 3.0
-
-        diff_et = avg_et - p_et
-        diff_tc = avg_tc - p_tc
-        diff_wt = avg_wt - p_wt
-
-        results_table.append({
-            'mode': mode_str,
-            'desc': mode_desc,
-            'our_et': avg_et, 'paper_et': p_et, 'diff_et': diff_et,
-            'our_tc': avg_tc, 'paper_tc': p_tc, 'diff_tc': diff_tc,
-            'our_wt': avg_wt, 'paper_wt': p_wt, 'diff_wt': diff_wt,
-            'our_avg': avg_our, 'paper_avg': p_avg
-        })
-
-        print(f"{mode_desc:<22} | {avg_et:<8.2f} {p_et:<8.2f} {diff_et:+6.2f}% | {avg_tc:<8.2f} {p_tc:<8.2f} {diff_tc:+6.2f}% | {avg_wt:<8.2f} {p_wt:<8.2f} {diff_wt:+6.2f}% | {avg_our:<8.2f} {p_avg:<8.2f}")
-
-    # Summary Average
-    mean_our_et = np.mean([r['our_et'] for r in results_table])
-    mean_pap_et = np.mean([r['paper_et'] for r in results_table])
-    mean_our_tc = np.mean([r['our_tc'] for r in results_table])
-    mean_pap_tc = np.mean([r['paper_tc'] for r in results_table])
-    mean_our_wt = np.mean([r['our_wt'] for r in results_table])
-    mean_pap_wt = np.mean([r['paper_wt'] for r in results_table])
-    mean_our_avg = np.mean([r['our_avg'] for r in results_table])
-    mean_pap_avg = np.mean([r['paper_avg'] for r in results_table])
-
-    print("-" * len(header))
-    print(f"{'AVERAGE (15 combos)':<22} | {mean_our_et:<8.2f} {mean_pap_et:<8.2f} {mean_our_et-mean_pap_et:+6.2f}% | {mean_our_tc:<8.2f} {mean_pap_tc:<8.2f} {mean_our_tc-mean_pap_tc:+6.2f}% | {mean_our_wt:<8.2f} {mean_pap_wt:<8.2f} {mean_our_wt-mean_pap_wt:+6.2f}% | {mean_our_avg:<8.2f} {mean_pap_avg:<8.2f}")
-    print(divider + "\n")
-
-    # Export to CSV
-    with open(args.output_csv, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow(['Mode', 'Description', 'Our_ET', 'Paper_ET', 'Diff_ET', 'Our_TC', 'Paper_TC', 'Diff_TC', 'Our_WT', 'Paper_WT', 'Diff_WT', 'Our_Avg', 'Paper_Avg'])
-        for r in results_table:
-            writer.writerow([r['mode'], r['desc'], f"{r['our_et']:.2f}", f"{r['paper_et']:.2f}", f"{r['diff_et']:+.2f}",
-                             f"{r['our_tc']:.2f}", f"{r['paper_tc']:.2f}", f"{r['diff_tc']:+.2f}",
-                             f"{r['our_wt']:.2f}", f"{r['paper_wt']:.2f}", f"{r['diff_wt']:+.2f}",
-                             f"{r['our_avg']:.2f}", f"{r['paper_avg']:.2f}"])
-        writer.writerow(['Average', 'Overall 15 Modalities', f"{mean_our_et:.2f}", f"{mean_pap_et:.2f}", f"{mean_our_et-mean_pap_et:+.2f}",
-                         f"{mean_our_tc:.2f}", f"{mean_pap_tc:.2f}", f"{mean_our_tc-mean_pap_tc:+.2f}",
-                         f"{mean_our_wt:.2f}", f"{mean_pap_wt:.2f}", f"{mean_our_wt-mean_pap_wt:+.2f}",
-                         f"{mean_our_avg:.2f}", f"{mean_pap_avg:.2f}"])
-    print(f"Results exported to: {args.output_csv}")
+    report(results_table, "BRATS 2018 vs PAPER TABLE 1 (raw prediction, no postprocess)", args.output_csv)
+    if args.postprocess:
+        root, ext = os.path.splitext(args.output_csv)
+        report(results_table_pp, "BRATS 2018 vs PAPER TABLE 1 (after author's postprocess)", root + '_postproc' + (ext or '.csv'))
 
 if __name__ == '__main__':
     main()
