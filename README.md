@@ -8,7 +8,7 @@ Reproduction of [Meta-Learned Modality-Weighted Knowledge Distillation](https://
 | ADNI CN / MCI / AD | Table 2 (C, G, B, I) | **C / B / I only.** Genomic is omitted; see [adni_flexmoe/README.md](adni_flexmoe/README.md) |
 | AudioVision-MNIST | Table 3 (missing audio / visual rates) | Held-out 900 / 150 / 450 split, locked checkpoints |
 
-The authors’ code ([billhhh/MetaKD](https://github.com/billhhh/MetaKD)) is BraTS only. Classification follows Algorithm 1, Eq. (2) mean-fill, and Eq. (5) pairwise L1 KD with a learned importance-weight vector. Hyperparameters for ADNI and AudioVision come from the AudioVision supplement (Adam \(10^{-3}\), weight decay \(10^{-2}\), StepLR \(20\times 0.9\); IWV Adam \(10^{-2}\)). BraTS follows the official `run.sh`: SGD, Nesterov 0.99, lr \(10^{-2}\), poly decay, 115k steps, no model selection.
+The authors' code ([billhhh/MetaKD](https://github.com/billhhh/MetaKD)) is BraTS only. Classification follows Algorithm 1, Eq. 2 mean-fill, and Eq. 5 pairwise L1 KD with a learned importance-weight vector. Hyperparameters for ADNI and AudioVision come from the AudioVision supplement: Adam 1e-3, weight decay 1e-2, StepLR every 20 epochs x 0.9; IWV Adam 1e-2. BraTS follows the official `run.sh`: SGD, Nesterov 0.99, lr 1e-2, poly decay, 115k steps, no model selection.
 
 This is **not** a claim that every paper number is recovered. Table 2 G-only 77.32 and C-only 59.65 are not reproducible from the public Flex-MoE tables; Table 1 in the paper is CBICA online (66 cases), while eval here is the local 57-case split.
 
@@ -98,12 +98,20 @@ python run_adni_pipeline.py \
   --output_csv logs/adni_table2_results.csv
 ```
 
-| | Ours (3 seeds) | Paper (7 non-G rows) |
+Accuracy (%) on the frozen split, three seeds, G omitted. Paper column is Table 2 for the same seven rows (mean of those rows: 59.69).
+
+| Combo | Ours (mean ± std) | Paper |
 |---|---:|---:|
 | C | 50.45 ± 1.26 | 59.65 |
-| 7-combo mean | 55.83 ± 2.14 | 59.69 |
+| B | 54.68 ± 2.76 | 56.23 |
+| I | 55.13 ± 4.59 | 55.32 |
+| C, B | 52.64 ± 2.15 | 63.24 |
+| C, I | 58.60 ± 3.53 | 62.75 |
+| B, I | 59.65 ± 2.86 | 57.56 |
+| C, B, I | 59.65 ± 3.68 | 63.06 |
+| Mean | 55.83 ± 2.14 | 59.69 |
 
-Weights: `adni_flexmoe/checkpoints/best_adni_model_seed{0,1,2}.pth`. Do not restore `PTCOGBEG` / `PTADDX` / `PTADBEG`.
+Locked weights: `adni_flexmoe/checkpoints/best_adni_model_seed0.pth` (and `seed1`, `seed2`). Diagnosis-onset columns PTCOGBEG, PTADDX, and PTADBEG stay excluded, as in the paper.
 
 ---
 
