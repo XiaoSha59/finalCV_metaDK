@@ -185,7 +185,7 @@ def main():
 
     print('loading from checkpoint: {}'.format(args.restore_from))
     if os.path.exists(args.restore_from):
-        checkpoint = torch.load(args.restore_from)
+        checkpoint = torch.load(args.restore_from, weights_only=False)
         model = checkpoint['model']
         trained_iters = checkpoint.get('iter', 'unknown')
         print("Loaded model trained for", trained_iters, "iters")
