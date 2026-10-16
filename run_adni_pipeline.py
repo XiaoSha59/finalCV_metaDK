@@ -1,6 +1,6 @@
 """MetaKD Table 2 on the official UNITES-Lab/Flex-MoE ADNI protocol.
 
-Data: Flex-MoE released loaders (C/B/I tables + UCSFFSX7, genomic_merged.h5ad).
+Data: Flex-MoE C/B/I loaders (UCSFFSX7). Genomic is omitted by default (--keep_g to restore).
 Training: Algorithm 1 / Eq. 2 / Eq. 5, SMOTE k=5, non-dedicated dropout of
 0 to 3 modalities (supplement Sec. 8 / BraTS), AudioVision classification
 optimizer (Adam 1e-3, wd 1e-2, StepLR 20 x 0.9; IWV Adam 1e-2).
@@ -23,7 +23,6 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from adni_flexmoe.models.metakd_model import MetaKDADNIModel
 from adni_flexmoe.preprocess.flexmoe_tables import load_biospecimen, load_clinical, load_image, load_labels
-from adni_flexmoe.preprocess.genomic_preprocess import h5ad_to_matrix, load_or_build_genomic
 
 MODS = ("C", "G", "B", "I")
 PAPER_BENCHMARKS = {
@@ -111,8 +110,10 @@ def get_arguments():
                         help="Project G onto K whitened PCA components fit on train-observed rows (0 = off; not in the paper)")
     parser.add_argument("--smote_no_g", action="store_true",
                         help="SMOTE neighbours from C/B/I only; G is ~98%% of the joint variance (not in the paper)")
-    parser.add_argument("--drop_g", action="store_true",
-                        help="Train and evaluate C/B/I only (same frozen split; not in the paper)")
+    parser.add_argument("--drop_g", dest="drop_g", action="store_true", default=True,
+                        help="Train and evaluate C/B/I only (default; same frozen split)")
+    parser.add_argument("--keep_g", dest="drop_g", action="store_false",
+                        help="Keep genomic. Local 4-mod experiments only; not the GitHub default.")
     parser.add_argument("--seeds", type=str, default="0,1,2")
     parser.add_argument("--output_csv", type=str, default="logs/adni_table2_results.csv")
     return parser.parse_args()
@@ -155,7 +156,7 @@ def make_split(args, subjects, observed):
             }, handle, indent=2)
         print("WARNING: official PTID_splits.json is missing; Table 2 numbers will not be subject-identical.")
     if not observed[idx_val].all() or not observed[idx_test].all():
-        raise ValueError("Flex-MoE val/test must lie in the four-modality intersection")
+        raise ValueError("Val/test must lie in the intersection of the active modalities")
     print(f"Split source: {source}")
     return idx_train, idx_val, idx_test
 
@@ -167,16 +168,26 @@ def load_protocol(args):
           f"MCI={(subjects.label == 1).sum()}  AD={(subjects.label == 2).sum()}")
 
     clinical, obs_c = load_clinical(args.data_root, ptids)
-    h5ad = args.genomic_h5ad or os.path.join(args.processed_root, "genomic", "genomic_merged.h5ad")
-    h5ad = load_or_build_genomic(args.data_root, h5ad, args.tools_dir, args.allow_raw_genomic_fallback)
-    genomic, obs_g = h5ad_to_matrix(h5ad, ptids)
     biospecimen, obs_b = load_biospecimen(args.data_root, ptids)
     image, obs_i = load_image(args.data_root, ptids)
-    observed = np.stack([obs_c, obs_g, obs_b, obs_i], axis=1)
-    arrays = [clinical, genomic, biospecimen, image]
-    print("Observed: " + ", ".join(f"{m}={int(observed[:, i].sum())}" for i, m in enumerate(MODS))
-          + f" | all four={int(observed.all(1).sum())}")
-    for name, arr in zip(MODS, arrays):
+    if args.drop_g:
+        observed = np.stack([obs_c, obs_b, obs_i], axis=1)
+        arrays = [clinical, biospecimen, image]
+        mods = active_mods(True)
+        h5ad = ""
+        print("Observed (G omitted): " + ", ".join(f"{m}={int(observed[:, i].sum())}" for i, m in enumerate(mods))
+              + f" | all three={int(observed.all(1).sum())}")
+    else:
+        from adni_flexmoe.preprocess.genomic_preprocess import h5ad_to_matrix, load_or_build_genomic
+        h5ad = args.genomic_h5ad or os.path.join(args.processed_root, "genomic", "genomic_merged.h5ad")
+        h5ad = load_or_build_genomic(args.data_root, h5ad, args.tools_dir, args.allow_raw_genomic_fallback)
+        genomic, obs_g = h5ad_to_matrix(h5ad, ptids)
+        observed = np.stack([obs_c, obs_g, obs_b, obs_i], axis=1)
+        arrays = [clinical, genomic, biospecimen, image]
+        mods = MODS
+        print("Observed: " + ", ".join(f"{m}={int(observed[:, i].sum())}" for i, m in enumerate(mods))
+              + f" | all four={int(observed.all(1).sum())}")
+    for name, arr in zip(mods, arrays):
         print(f"  {name}: {arr.shape[1]} features")
 
     idx_train, idx_val, idx_test = make_split(args, subjects, observed)
@@ -187,25 +198,22 @@ def load_protocol(args):
     }
     if args.center_inputs:
         obs_tr = data["train"][1]
-        for m, name in enumerate(MODS):
+        for m, name in enumerate(mods):
             mu = data["train"][0][m][obs_tr[:, m]].mean(0, keepdims=True).astype(np.float32)
             for part in ("train", "val", "test"):
                 data[part][0][m] -= mu
             print(f"  centered {name} with train-observed mean (n={int(obs_tr[:, m].sum())})")
     if args.g_pca > 0:
+        if args.drop_g:
+            raise ValueError("--g_pca requires --keep_g")
         from sklearn.decomposition import PCA
         obs_tr = data["train"][1][:, 1]
         pca = PCA(n_components=args.g_pca, whiten=True, random_state=0).fit(data["train"][0][1][obs_tr])
         for part in ("train", "val", "test"):
             xs, obs, _ = data[part]
             xs[1] = (pca.transform(xs[1]) * obs[:, 1:2]).astype(np.float32)
-            print(f"  G -> {args.g_pca} PCA comps (fit n={int(obs_tr.sum())}, "
+        print(f"  G -> {args.g_pca} PCA comps (fit n={int(obs_tr.sum())}, "
               f"explained {100 * pca.explained_variance_ratio_.sum():.1f}%)")
-    if args.drop_g:
-        for part in ("train", "val", "test"):
-            xs, obs, y = data[part]
-            data[part] = ([xs[0], xs[2], xs[3]], obs[:, [0, 2, 3]], y)
-        print("  dropped G; remaining modalities C, B, I")
     return subjects, data, idx_train, idx_val, idx_test, h5ad
 
 
@@ -445,7 +453,7 @@ def main():
             "flexmoe_repo": "https://github.com/UNITES-Lab/Flex-MoE",
             "flexmoe_commit": "21688077488e58c1a634ca7122cffdb28cae3bc9",
             "data_root": os.path.abspath(args.data_root),
-            "genomic_h5ad": os.path.abspath(h5ad),
+            "genomic_h5ad": os.path.abspath(h5ad) if h5ad else "",
             "allow_generated_split": args.allow_generated_split,
             "allow_raw_genomic_fallback": args.allow_raw_genomic_fallback,
             "split_sizes": {"train": int(len(idx_train)), "val": int(len(idx_val)), "test": int(len(idx_test))},

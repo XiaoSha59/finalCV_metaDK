@@ -50,12 +50,28 @@ env/
 .env/
 
 # Data folders & temporary scratch files
-adni_flexmoe/
 adni_raw_flexmoe/
 kaggle_adni_run/
 DATADIC_*.csv
 scratch_*
 *.ipynb
+
+# ADNI copies that stay on this machine only (not GitHub)
+adni/
+run_cbi_metakd.py
+KAGGLE_ADNI_CHECKLIST.md
+flexmoe_*.txt
+metakd_adni_details.txt
+metakd_page*.txt
+adni_flexmoe/data/
+adni_flexmoe/notebooks/
+adni_flexmoe/models/resnet34_1d.py
+adni_flexmoe/preprocess/genomic_preprocess.py
+adni_flexmoe/preprocess/multimodal_processor.py
+adni_flexmoe/preprocess/run_official_genomic.sh
+adni_flexmoe/train.py
+adni_flexmoe/eval.py
+adni_flexmoe/README.md
 
 
 
