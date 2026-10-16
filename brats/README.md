@@ -102,12 +102,12 @@ Processing follows the official MetaKD 3D volumetric pipeline:
 
 1. **Non-Zero Bounding Box Cropping**: Removes uninformative zero-background margins around the skull.
 2. **Foreground Z-Score Normalization**: Each modality sequence is normalized independently over non-zero brain voxels:
-   $$\hat{x} = \frac{x - \mu_{\text{fg}}}{\sigma_{\text{fg}}}$$
-3. **Patch Extraction**: During training, sub-volumes of size **$128 \times 128 \times 128$** are randomly cropped from the volumes.
+   `x_hat = (x - mu_fg) / sigma_fg`
+3. **Patch Extraction**: During training, sub-volumes of size **128 x 128 x 128** are randomly cropped from the volumes.
 4. **Data Augmentation**:
-   - Random flipping along axial, coronal, and sagittal planes ($p = 0.5$).
+   - Random flipping along axial, coronal, and sagittal planes (p = 0.5).
    - Random spatial cropping centered on tumor foreground.
-5. **Missing-Modality Simulation**: During Phase 2 training (`--mode random`), $0$ to $3$ modalities are randomly masked (filled with zeros) per batch, forcing the model to learn robust shared representations.
+5. **Missing-Modality Simulation**: During Phase 2 training (`--mode random`), 0 to 3 modalities are randomly masked (filled with zeros) per batch, forcing the model to learn robust shared representations.
 
 ---
 
@@ -123,13 +123,17 @@ MetaKD employs a dual-branch 3D architecture where:
 In each training step, optimization alternates between two stages:
 
 1. **Meta-Update of Importance-Weight Vector (IWV)**:
-   The importance-weight vector $w^*$ represents the relative information value of each modality. It is updated on the meta-validation set $D_v$ using meta-gradients.
+   The importance-weight vector w* represents the relative information value of each modality. It is updated on the meta-validation set D_v using meta-gradients.
 2. **Network Parameter Update**:
-   Given fixed $w^*$, the network parameters $\theta$ are trained on the training batch $D_t$ via:
-   $$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{seg}} + \alpha \cdot \mathcal{L}_{\text{KD}}$$
-   where $\mathcal{L}_{\text{seg}} = \mathcal{L}_{\text{Dice}} + \mathcal{L}_{\text{BCE}}$, and the pairwise knowledge distillation loss is:
-   $$\mathcal{L}_{\text{KD}} = \sum_{i \neq j} \frac{w_i^*}{w_j^*} \| f_i - f_j \|_1$$
-   with $\alpha = 0.01$.
+   Given fixed w*, the network parameters theta are trained on the training batch D_t via:
+
+   ```text
+   L_total = L_seg + alpha * L_KD
+   L_seg   = L_Dice + L_BCE
+   L_KD    = sum_{i != j} (w_i* / w_j*) ||f_i - f_j||_1
+   ```
+
+   with alpha = 0.1 (the `--alpha` default in `train.py`).
 
 ### Two-Phase Training Schedule
 
@@ -138,8 +142,8 @@ In each training step, optimization alternates between two stages:
 | **Phase 1 (Warmup)** | 0 → 80,000 | `full` | Trains backbone with all 4 modalities present. Establishes strong multi-modal latent representations. |
 | **Phase 2 (MetaKD)** | 80,000 → 115,000 | `random` | Reloads Phase 1 checkpoint (`final.pth`). Randomly drops modalities and optimizes both network weights and IWV via bi-level distillation. |
 
-- **Optimizer**: SGD with Nesterov momentum $0.99$, weight decay $10^{-4}$.
-- **Learning Rate**: Initial $10^{-2}$, decayed via polynomial schedule: $\text{lr} = \text{lr}_0 \cdot (1 - \frac{\text{step}}{\text{total}})^{0.9}$.
+- **Optimizer**: SGD with Nesterov momentum 0.99, weight decay 5e-4.
+- **Learning Rate**: Initial 1e-2, decayed via polynomial schedule: `lr = lr0 * (1 - step / total) ** 0.9`.
 - **Evaluation Rule**: The paper evaluates the **final step (115,000)** checkpoint (`final.pth`), **not** the best validation Dice, following the original protocol.
 
 ---
@@ -148,7 +152,7 @@ In each training step, optimization alternates between two stages:
 
 ### Author's Post-Processing (`utils/postprocess.py`)
 Raw network predictions are refined prior to official scoring:
-1. **Connected Component Filtering**: Removes small isolated ET clusters with volume $< 500$ voxels, eliminating false-positive speckles.
+1. **Connected Component Filtering**: Removes small isolated ET clusters with volume < 500 voxels, eliminating false-positive speckles.
 2. **T1ce K-Means Intensity Clustering**: Thresholds the hyperintense T1ce signal inside the tumor core to cleanly distinguish enhancing tumor (ET) from non-enhancing necrosis.
 
 ### Why ET Drops Without T1ce
@@ -162,7 +166,7 @@ Raw network predictions are refined prior to official scoring:
 
 ## 7. Table 1 Benchmark (All 15 Missing-Modality Combinations)
 
-Evaluation follows a sliding-window approach over full volumes with patch size $128 \times 128 \times 128$ and $1/3$ overlap.
+Evaluation follows a sliding-window approach over full volumes with patch size 128 x 128 x 128 and 1/3 overlap.
 
 ### Ground Truth from MetaKD Paper Table 1 vs. Evaluation
 
@@ -206,7 +210,7 @@ To solve this, our pipeline supports **shared-memory RAM caching**:
 ```bash
 pip install -r requirements.txt
 ```
-PyTorch with CUDA support (VRAM $\ge 16$ GB) is required.
+PyTorch with CUDA support (VRAM >= 16 GB) is required.
 
 ### Step 1: Phase 1 Warmup (80,000 steps)
 ```bash

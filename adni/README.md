@@ -51,20 +51,20 @@ SMOTE (`k = 5`) is applied only on **complete** training rows so missingness is 
 
 ## MetaKD
 
-Algorithm 1, two stages per batch: update \(w^\star\) on a meta-val split \(D_v\), then train \(\theta, \zeta\) with \(w^\star\) frozen. Classification hyperparameters follow the AudioVision supplement (the paper does not give an ADNI optimizer).
+Algorithm 1, two stages per batch: update w* on a meta-val split D_v, then train theta, zeta with w* frozen. Classification hyperparameters follow the AudioVision supplement (the paper does not give an ADNI optimizer).
 
 | | Value |
 |---|---|
-| Inner optimizer | Adam \(10^{-3}\), weight decay \(10^{-2}\), StepLR every 20 epochs \(\times 0.9\) |
-| IWV optimizer | Adam \(10^{-2}\), weight decay \(10^{-2}\), one step per train batch |
-| \(D_v\) | 10% of the training split, stratified, disjoint from \(D_t\) |
-| Encoder | MLP \(d \to 256 \to 128\) per modality (C/B/I are all \(< 8192\)) |
-| Decoder (Eq. 3) | concat \(\to\) Linear \(64\), dropout 0.6, Linear 3 |
-| Missing slots (Eq. 2) | mean of the observed \(f_i\) in the batch |
-| KD (Eq. 5) | \(p = 1\), ratio \(w_i^\star / w_j^\star\), **mean** L1 (vector-sum L1 with \(\alpha = 0.1\) collapses every scenario to the majority class) |
-| \(\alpha\) | 0.1 |
+| Inner optimizer | Adam 1e-3, weight decay 1e-2, StepLR every 20 epochs x 0.9 |
+| IWV optimizer | Adam 1e-2, weight decay 1e-2, one step per train batch |
+| D_v | 10% of the training split, stratified, disjoint from D_t |
+| Encoder | MLP d -> 256 -> 128 per modality (C/B/I are all < 8192) |
+| Decoder (Eq. 3) | concat -> Linear 64, dropout 0.6, Linear 3 |
+| Missing slots (Eq. 2) | mean of the observed f_i in the batch |
+| KD (Eq. 5) | p = 1, ratio w_i* / w_j*, **mean** L1 (vector-sum L1 with alpha = 0.1 collapses every scenario to the majority class) |
+| alpha | 0.1 |
 | Batch / epochs | 8 / 60 |
-| Missing-modality train | drop 0 to \(n-1\) of the *observed* modalities (BraTS non-dedicated setting in supplement Sec. 8) |
+| Missing-modality train | drop 0 to n-1 of the *observed* modalities (BraTS non-dedicated setting in supplement Sec. 8) |
 | Checkpoint | best mean accuracy over the 7 C/B/I Table 2 subsets on val |
 
 `115k` / `120k` iterations in the paper are BraTS (and the Fig. 9 IWV plot), not an ADNI recipe. AudioVision is 60 epochs; that is what this run uses.
