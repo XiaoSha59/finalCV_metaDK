@@ -174,23 +174,39 @@ class BraTSDataSet(data.Dataset):
 
     def __getitem__(self, index):
         datafiles = self.files[index]
-        flairNII = nib.load(datafiles["flair"])
-        t1NII = nib.load(datafiles["t1"])
-        t1ceNII = nib.load(datafiles["t1ce"])
-        t2NII = nib.load(datafiles["t2"])
-        labelNII = nib.load(datafiles["label"])
-        flair = self.truncate(flairNII.get_fdata())
-        t1 = self.truncate(t1NII.get_fdata())
-        t1ce = self.truncate(t1ceNII.get_fdata())
-        t2 = self.truncate(t2NII.get_fdata())
-        image = np.array([flair, t1, t1ce, t2])
-        label = labelNII.get_fdata()
-        image = image.astype(np.float32)
-        label = label.astype(np.float32)
+        name = datafiles["name"]
 
-        label = self.id2trainId(label)
-        image = image.transpose((0, 3, 1, 2))
-        label = label.transpose((0, 3, 1, 2))
+        # Check high-speed RAM / disk cache first (100% bit-for-bit exact)
+        cached = False
+        for cdir in ('/dev/shm/cache_brats', 'data/cache_brats'):
+            cpath = osp.join(cdir, f"{name}.npz")
+            if osp.exists(cpath):
+                try:
+                    c = np.load(cpath)
+                    image = c['img'].astype(np.float32)
+                    label = c['lbl'].astype(np.float32)
+                    cached = True
+                    break
+                except Exception:
+                    pass
+
+        if not cached:
+            flairNII = nib.load(datafiles["flair"])
+            t1NII = nib.load(datafiles["t1"])
+            t1ceNII = nib.load(datafiles["t1ce"])
+            t2NII = nib.load(datafiles["t2"])
+            labelNII = nib.load(datafiles["label"])
+            flair = self.truncate(flairNII.get_fdata())
+            t1 = self.truncate(t1NII.get_fdata())
+            t1ce = self.truncate(t1ceNII.get_fdata())
+            t2 = self.truncate(t2NII.get_fdata())
+            image = np.array([flair, t1, t1ce, t2], dtype=np.float32)
+            label = labelNII.get_fdata().astype(np.float32)
+
+            label = self.id2trainId(label)
+            image = image.transpose((0, 3, 1, 2))
+            label = label.transpose((0, 3, 1, 2))
+
         [d0, d1, h0, h1, w0, w1], scale_flag = self.locate_bbx_wScale(label)
 
         image = image[:, d0: d1, h0: h1, w0: w1]
