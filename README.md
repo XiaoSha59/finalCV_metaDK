@@ -52,16 +52,23 @@ Raw volumes stay gitignored: `brats/data/BraTS2018/`, `audiovision/data/Audio_MN
 
 ## BraTS 2018 (Table 1)
 
-Details: **[brats/README.md](brats/README.md)**.
+Full protocol, two-phase bi-level schedule, and ET postprocessing dynamics: **[brats/README.md](brats/README.md)**.
 
 ```bash
 # data: brats/data/BraTS2018/MICCAI_BraTS_2018_Data_Training/{HGG,LGG}/
 
-bash brats/process/run_2phase.sh
-bash brats/process/run_eval.sh
+bash brats/process/run_2phase.sh   # 80k warmup -> 115k MetaKD random drop
+bash brats/process/run_eval.sh     # 15 combinations, raw + author postprocess CSVs
 ```
 
-Paper Table 1 averages (ET / TC / WT **63.74 / 79.15 / 86.90**) are from the **online** 66-case set after postprocess. Numbers from `eval_all_modalities.py` are the **local** 57-case test and will not match that row.
+Paper Table 1 reference performance (Dice %) across the 15 missing-MRI scenarios:
+
+| Setting | ET | TC | WT | Avg |
+|---|:---:|:---:|:---:|:---:|
+| All 4 modalities (`Fl+T1+T1c+T2`) | 79.74 | 86.20 | 90.92 | 85.62 |
+| 15-combo mean (Paper Table 1) | 63.74 | 79.15 | 86.90 | 76.60 |
+
+Paper Table 1 averages are from the **online** 66-case CBICA set after postprocess. Numbers from `brats/process/eval_all_modalities.py` evaluate the **local** 57-case held-out split (`brats/data/BraTS18_test.csv`). Output logs and CSV matrices are written to `logs/brats18_table1_results.csv`.
 
 ---
 

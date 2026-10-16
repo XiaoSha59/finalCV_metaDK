@@ -11,9 +11,14 @@ Image + spoken-digit pairs used for MetaKD Table 3 ([arXiv:2405.07155](https://a
 | Image | First 150 MNIST training images of that digit ([torchvision](https://pytorch.org/vision/stable/generated/torchvision.datasets.MNIST.html)) | `1 × 28 × 28` |
 | Audio | [Free Spoken Digit Dataset](https://github.com/Jakobovski/free-spoken-digit-dataset), 50 clips each from jackson, nicolas, and theo | `1 × 20 × 20` MFCC |
 
-Each wav is named `{digit}_{speaker}_{index}.wav`. Image `i` of a digit is paired with the `i`-th selected clip of that digit.
+### Data Acquisition & Placement
+- **Images (MNIST)**: Downloaded automatically into `audiovision/data/MNIST/` via `torchvision.datasets.MNIST`.
+- **Audio (FSDD)**: Clone or download [Free Spoken Digit Dataset](https://github.com/Jakobovski/free-spoken-digit-dataset):
+  ```bash
+  git clone https://github.com/Jakobovski/free-spoken-digit-dataset.git
+  ```
 
-Put the wavs here (this folder is gitignored):
+Put the audio recordings under `audiovision/data/Audio_MNIST/sound/` (gitignored), grouped by digit `0-9`:
 
 ```text
 audiovision/data/Audio_MNIST/sound/0/*.wav
@@ -22,7 +27,7 @@ audiovision/data/Audio_MNIST/sound/1/*.wav
 audiovision/data/Audio_MNIST/sound/9/*.wav
 ```
 
-MNIST is downloaded into `audiovision/data/MNIST` on the first run. A leftover copy at repo-root `data/Audio_MNIST/` is still accepted.
+A leftover copy at repo-root `data/Audio_MNIST/` is still accepted by the loader. On first run, preprocessed arrays are cached at `audiovision/data/Audio_MNIST/audiovision_1500_smil_heldout.npz`.
 
 ## Processing
 

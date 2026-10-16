@@ -6,6 +6,10 @@ This is not a full 15-row Table 2 reproduction.
 
 ## Data
 
+### Data Acquisition & License
+- **Official Source**: Alzheimer's Disease Neuroimaging Initiative ([ADNI](https://adni.loni.usc.edu)). Access requires submitting a Data Use Agreement (DUA).
+- **Tabular Preprocessed Package**: Follows the curated multi-modal table dump from [UNITES-Lab/Flex-MoE](https://github.com/UNITES-Lab/Flex-MoE).
+
 Place the Flex-MoE ADNI package under `adni/data/raw/` (gitignored). A leftover copy at repo-root `adni_raw_flexmoe/` is still accepted.
 
 ```text

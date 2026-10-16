@@ -41,6 +41,30 @@ brats/
 
 The benchmark uses the 285 labeled cases (210 HGG / 75 LGG) from the MICCAI BraTS 2018 Training Dataset.
 
+### Data Acquisition & Placement
+- **Official Source**: MICCAI BraTS 2018 Challenge ([CBICA](https://www.med.upenn.edu/sbia/brats2018/data.html) / Synapse).
+- **Public Mirror**: Available on Kaggle ([saurabhshahane/brats-2018-dataset](https://www.kaggle.com/datasets/saurabhshahane/brats-2018-dataset)).
+
+Place the uncompressed training folder at `brats/data/BraTS2018/` (gitignored). A leftover copy at repo-root `data/BraTS2018/` is also accepted by the loaders.
+
+```text
+brats/data/BraTS2018/MICCAI_BraTS_2018_Data_Training/
+├── HGG/
+│   ├── Brats18_2013_2_1/
+│   │   ├── Brats18_2013_2_1_flair.nii.gz
+│   │   ├── Brats18_2013_2_1_t1.nii.gz
+│   │   ├── Brats18_2013_2_1_t1ce.nii.gz
+│   │   ├── Brats18_2013_2_1_t2.nii.gz
+│   │   └── Brats18_2013_2_1_seg.nii.gz
+│   └── ... (210 HGG subjects)
+└── LGG/
+    ├── Brats18_2013_0_1/
+    │   ├── Brats18_2013_0_1_flair.nii.gz
+    │   ├── Brats18_2013_0_1_t1.nii.gz
+    │   ├── ...
+    └── ... (75 LGG subjects)
+```
+
 ### Modalities (4 MRI sequences per patient)
 
 | Index | Modality | Full Name | Clinical Relevance |
