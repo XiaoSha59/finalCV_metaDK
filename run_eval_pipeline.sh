@@ -10,19 +10,21 @@ echo "🚀 RUNNING BRATS 2018 15-MODALITY BENCHMARK (TABLE 1)"
 echo "Date: $(date)"
 echo "=========================================================="
 
-CKPT="snapshots/BraTS18_phase2_115k/best_model.pth"
-if [ ! -f "$CKPT" ]; then
-    CKPT="snapshots/BraTS18_phase2_115k/final.pth"
-fi
-if [ ! -f "$CKPT" ]; then
-    CKPT="snapshots/BraTS18_phase2_115k/last.pth"
-fi
+# The author evaluates the final 115k-step model; no checkpoint selection on the test set.
+CKPT="snapshots/BraTS18_phase2_115k/final.pth"
 if [ ! -f "$CKPT" ]; then
     CKPT="snapshots/BraTS18_MetaKD_115k/final.pth"
 fi
 if [ ! -f "$CKPT" ]; then
-    CKPT="snapshots/BraTS18_MetaKD_115k/last.pth"
+    CKPT="snapshots/BraTS18_phase2_115k/last.pth"
+    if [ ! -f "$CKPT" ]; then
+        echo "ERROR: no final.pth / last.pth found, nothing to evaluate."
+        exit 1
+    fi
+    echo "WARNING: final.pth not found, evaluating UNFINISHED checkpoint $CKPT (not comparable to the paper)."
 fi
+echo "Checkpoint: $CKPT"
+mkdir -p logs
 
 $PYTHON -u eval_all_modalities.py \
     --restore_from "$CKPT" \
