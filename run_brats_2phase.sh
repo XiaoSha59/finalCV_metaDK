@@ -12,6 +12,8 @@ PYTHON="/home/XiaoSha/venv/bin/python"
 WORKDIR="/home/XiaoSha/finalCV_metaDK"
 export PYTHONPATH="$WORKDIR:$PYTHONPATH"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+# data loading is the bottleneck on the 8-vCPU g2-standard-8
+NUM_WORKERS="${NUM_WORKERS:-6}"
 cd "$WORKDIR"
 
 mkdir -p logs snapshots/BraTS18_phase1_80k snapshots/BraTS18_phase2_115k
@@ -35,9 +37,16 @@ else
     echo ">>> [PHASE 1/2] Full-Modality Warmup: 0 to 80,000 steps"
     echo "    mode=0,1,2,3 | lr=1e-2 | momentum=0.99 | batch_size=2"
     echo "=========================================================="
+    PHASE1_RELOAD="False"
+    PHASE1_RELOAD_PATH="$PHASE1_SNAP/last.pth"
+    if [ -f "$PHASE1_RELOAD_PATH" ]; then
+        PHASE1_RELOAD="True"
+        echo "    (Resuming interrupted Phase 1 from: $PHASE1_RELOAD_PATH)"
+    fi
     $PYTHON train.py \
         --snapshot_dir "$PHASE1_SNAP/" \
-        --reload_from_checkpoint False \
+        --reload_from_checkpoint "$PHASE1_RELOAD" \
+        --reload_path "$PHASE1_RELOAD_PATH" \
         --num_steps 80000 \
         --val_pred_every 100 \
         --batch_size 2 \
@@ -46,7 +55,8 @@ else
         --random_scale True \
         --random_seed 999 \
         --mode "0,1,2,3" \
-        2>&1 | tee logs/brats_phase1.log
+        --num_workers "$NUM_WORKERS" \
+        2>&1 | tee -a logs/brats_phase1.log
     echo ">>> Phase 1 completed at $(date)"
 fi
 
@@ -58,6 +68,11 @@ echo ">>> [PHASE 2/2] Missing-Modality MetaKD: 80k to 115,000 steps"
 echo "    mode=random | lr=1e-2 | momentum=0.99 | batch_size=2"
 echo "    Reload from: $PHASE1_CKPT"
 echo "=========================================================="
+
+if [ -f "$PHASE2_SNAP/final.pth" ]; then
+    echo ">>> Phase 2 checkpoint found ($PHASE2_SNAP/final.pth), skipping Phase 2."
+    exit 0
+fi
 
 RELOAD_PATH="$PHASE1_CKPT"
 if [ -f "$PHASE2_SNAP/last.pth" ]; then
@@ -77,11 +92,11 @@ $PYTHON train.py \
     --random_scale True \
     --random_seed 999 \
     --mode "random" \
-    2>&1 | tee logs/brats_phase2.log
+    --num_workers "$NUM_WORKERS" \
+    2>&1 | tee -a logs/brats_phase2.log
 
 echo ""
 echo "=========================================================="
 echo "BraTS 2-Phase Training COMPLETED at $(date)"
-echo "  Best model : $PHASE2_SNAP/best_model.pth"
 echo "  Final model: $PHASE2_SNAP/final.pth"
 echo "=========================================================="
