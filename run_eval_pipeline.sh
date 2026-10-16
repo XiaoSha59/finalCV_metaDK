@@ -1,12 +1,12 @@
 #!/bin/bash
-PYTHON="/home/XiaoSha/venv/bin/python"
-WORKDIR="/home/XiaoSha/finalCV_metaDK"
-cd "$WORKDIR"
-export PYTHONPATH="$WORKDIR:$PYTHONPATH"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+PYTHON="${PYTHON:-python}"
+cd "$ROOT"
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
 echo "=========================================================="
-echo "🚀 RUNNING BRATS 2018 15-MODALITY BENCHMARK (TABLE 1)"
+echo "RUNNING BRATS 2018 15-MODALITY BENCHMARK (TABLE 1)"
 echo "Date: $(date)"
 echo "=========================================================="
 

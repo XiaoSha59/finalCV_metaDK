@@ -2,19 +2,18 @@
 # =============================================================
 # MetaKD BraTS 2018  2-Phase Training Pipeline
 # Follows the EXACT methodology from billhhh/MetaKD run.sh:
-#   Phase 1 (0 ? 80k):   Full 4 modalities  --mode=0,1,2,3
-#   Phase 2 (80k ? 115k): Missing modality  --mode=random
+#   Phase 1 (0 → 80k):   Full 4 modalities  --mode=0,1,2,3
+#   Phase 2 (80k → 115k): Missing modality  --mode=random
 # =============================================================
 set -e
 set -o pipefail
 
-PYTHON="/home/XiaoSha/venv/bin/python"
-WORKDIR="/home/XiaoSha/finalCV_metaDK"
-export PYTHONPATH="$WORKDIR:$PYTHONPATH"
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+PYTHON="${PYTHON:-python}"
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
-# data loading is the bottleneck on the 8-vCPU g2-standard-8
 NUM_WORKERS="${NUM_WORKERS:-6}"
-cd "$WORKDIR"
+cd "$ROOT"
 
 mkdir -p logs snapshots/BraTS18_phase1_80k snapshots/BraTS18_phase2_115k
 

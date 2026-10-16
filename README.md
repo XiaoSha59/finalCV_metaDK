@@ -28,7 +28,7 @@ PyTorch with CUDA is required for BraTS. AudioVision and ADNI run on CPU.
 ## Layout
 
 ```text
-train.py  eval.py  eval_all_modalities.py   # BraTS
+train.py  eval_all_modalities.py            # BraTS
 run_brats_2phase.sh  run_eval_pipeline.sh   # 80k warmup → 115k MetaKD → Table 1
 datasets/  models/  losses/  utils/
 datalist/BraTS18/                           # 199 / 29 / 57 split (do not regenerate)
@@ -53,7 +53,7 @@ Raw data is gitignored: `data/BraTS2018/`, `data/Audio_MNIST/`, `adni_raw_flexmo
 data/BraTS2018/MICCAI_BraTS_2018_Data_Training/{HGG,LGG}/
 ```
 
-The lists in `datalist/BraTS18/` are already the 70 / 10 / 20 split (199 / 29 / 57). Do not run `split_data.py` unless you intend to change it.
+The lists in `datalist/BraTS18/` are already the 70 / 10 / 20 split (199 / 29 / 57). Do not regenerate them.
 
 Training is the official two-phase schedule. Phase 1: all four modalities, 80k steps. Phase 2: reload `final.pth`, `--mode=random` (drop 0–3 modalities), continue to 115k. The paper evaluates the **last** checkpoint, not the best validation Dice.
 
@@ -76,7 +76,7 @@ python train.py \
   --val_list BraTS18/BraTS18_metaVal.csv
 ```
 
-`run_brats_autopilot.sh` resumes from `last.pth` after a GCP host restart, then runs eval. Paper Table 1 averages (ET / TC / WT **63.74 / 79.15 / 86.90**) are from the **online** 66-case set after postprocess. Numbers from `eval_all_modalities.py` are the **local** 57-case test and will not match that row.
+Paper Table 1 averages (ET / TC / WT **63.74 / 79.15 / 86.90**) are from the **online** 66-case set after postprocess. Numbers from `eval_all_modalities.py` are the **local** 57-case test and will not match that row.
 
 ---
 

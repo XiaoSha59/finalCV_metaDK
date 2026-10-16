@@ -22,9 +22,34 @@ logs/
 *.tar.gz
 *.zip
 
-# Cloud runner and background scripts
+# Cloud runner, Kaggle metadata, and one-off experiment scripts (local only)
 metakd.service
 run_auto_train.sh
+auto_shutdown_watcher.sh
+run_brats_production.sh
+run_brats_autopilot.sh
+run_master_pipeline.sh
+dataset-metadata.json
+/split_data.py
+/eval.py
+utils/draw_log_*.py
+datalist/BraTS18/BraTS18_test_quick.csv
+build_cache.py
+check_*.py
+extract_paper.py
+kill_cache.py
+restart_with_cache.py
+run_benchmark.py
+run_f32_test.py
+run_precision.py
+run_remote_check.py
+run_verify.py
+test_cache_speed.py
+test_f32_npz.py
+test_npy_speed.py
+test_precision.py
+trigger_cache.py
+verify_cache_exact.py
 
 # Finalized AudioVision Table 3 checkpoints stay in the repo.
 !audiovision/checkpoints/

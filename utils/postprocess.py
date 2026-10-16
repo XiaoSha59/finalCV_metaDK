@@ -65,7 +65,7 @@ def continues_region_extract(label, MR=None, name=''):
 
 
 def regions_to_label(et, wt, tc):
-    """Merge ET/WT/TC binary maps into a BraTS label map, same order as eval.py."""
+    """Merge ET/WT/TC binary maps into a BraTS label map, same order as eval_all_modalities.py."""
     seg = np.zeros_like(et, dtype=np.int16)
     seg = np.where(wt == 1, 2, seg)
     seg = np.where(tc == 1, 1, seg)
