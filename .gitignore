@@ -35,6 +35,11 @@ audiovision/checkpoints/*
 !audiovision/checkpoints/metakd_audio_rate_*.pth
 !audiovision/checkpoints/metakd_visual_rate_*.pth
 
+# Locked ADNI C/B/I 3-seed checkpoints (drop-G, centered).
+!adni_flexmoe/checkpoints/
+adni_flexmoe/checkpoints/*
+!adni_flexmoe/checkpoints/best_adni_model_seed*.pth
+
 # IDE and OS files
 .vscode/
 .idea/

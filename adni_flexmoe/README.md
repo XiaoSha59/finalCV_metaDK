@@ -111,6 +111,8 @@ Three seeds `{0,1,2}`, `--center_inputs`, frozen split, G omitted. Mean accuracy
 
 Individual seeds for the 7-combo mean: 56.98, 53.36, 57.14. This is the honest Flex-MoE C/B/I ceiling on the frozen split, not Table 2.
 
+Best-validation weights from that run are in `adni_flexmoe/checkpoints/best_adni_model_seed{0,1,2}.pth`.
+
 ## Reproduce
 
 ```bash
