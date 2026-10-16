@@ -275,7 +275,6 @@ def main():
         collate_fn=my_collate
     )
 
-    val_Dice_best = -999999.0
     kdLoss_wt = args.alpha
 
     for i_iter, batch in enumerate(trainloader):
@@ -340,17 +339,6 @@ def main():
                     writer.add_scalar('Val_Avg_Dice', val_avg_Dice, i_iter)
                     print('Validate iter = {}, ET = {:.4f}, WT = {:.4f}, TC = {:.4f}, Avg = {:.4f}'.format(i_iter, val_ET, val_WT, val_TC, val_avg_Dice))
                     print('IWV (softmax):', model.kd_weights.get_kdWeights().detach().cpu().numpy())
-                    if val_avg_Dice > val_Dice_best:
-                        val_Dice_best = val_avg_Dice
-                        print('>>> [NEW BEST MODEL] Avg Dice: {:.4f} at iter {} -> Saving best_model.pth <<<'.format(val_Dice_best, i_iter))
-                        best_checkpoint = {
-                            'model': model,
-                            'optimizer': optimizer,
-                            'kd_optim': kd_optim,
-                            'iter': i_iter,
-                            'best_val_dice': val_Dice_best
-                        }
-                        torch.save(best_checkpoint, osp.join(args.snapshot_dir, 'best_model.pth'))
                 val_end = timeit.default_timer()
                 print('val one iter', val_end - val_start, 'seconds')
 
