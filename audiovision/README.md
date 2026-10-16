@@ -16,13 +16,13 @@ Each wav is named `{digit}_{speaker}_{index}.wav`. Image `i` of a digit is paire
 Put the wavs here (this folder is gitignored):
 
 ```text
-data/Audio_MNIST/sound/0/*.wav
-data/Audio_MNIST/sound/1/*.wav
+audiovision/data/Audio_MNIST/sound/0/*.wav
+audiovision/data/Audio_MNIST/sound/1/*.wav
 ...
-data/Audio_MNIST/sound/9/*.wav
+audiovision/data/Audio_MNIST/sound/9/*.wav
 ```
 
-MNIST is downloaded into `data/MNIST` on the first run.
+MNIST is downloaded into `audiovision/data/MNIST` on the first run. A leftover copy at repo-root `data/Audio_MNIST/` is still accepted.
 
 ## Processing
 
@@ -35,7 +35,7 @@ Audio follows SMIL `src/utils/wav2mfcc.py`:
 
 Images are divided by 255. Both images and MFCCs are then normalized with mean `0.5` and std `0.5`. No Gaussian noise is added.
 
-The arrays are cached at `data/Audio_MNIST/audiovision_1500_smil_heldout.npz`.
+The arrays are cached at `audiovision/data/Audio_MNIST/audiovision_1500_smil_heldout.npz`.
 
 ## Split
 
@@ -53,7 +53,7 @@ A missing modality is applied only to the training set. `available_rate` is the 
 
 ```bash
 pip install -r requirements.txt
-python -m audiovision.run_experiments
+python -m audiovision.process.run_experiments
 ```
 
 Training is 60 epochs, Adam, batch size 32, seed 42. Checkpoints from the locked run are already in `audiovision/checkpoints/`.

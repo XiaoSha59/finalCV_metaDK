@@ -5,8 +5,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from .dataset import get_audiovision_loaders
+from ..data.dataset import get_audiovision_loaders
 from .models import MetaKDAudioVision, LeNet5, SNetPluse
+
+_AV_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 def evaluate_accuracy(model: nn.Module, loader, eval_mode: str = "image_only", device: str = "cpu") -> float:
@@ -111,7 +113,7 @@ def train_metakd_audiovision(
     best_test_acc = 0.0
     target_eval_mode = "image_only" if missing_modality == "audio" else "audio_only"
 
-    ckpt_dir = "audiovision/checkpoints"
+    ckpt_dir = os.path.join(_AV_ROOT, "checkpoints")
     os.makedirs(ckpt_dir, exist_ok=True)
     filename = ckpt_name or f"metakd_{missing_modality}_rate_{int(available_rate * 100)}pct.pth"
     ckpt_path = os.path.join(ckpt_dir, filename)

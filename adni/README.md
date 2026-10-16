@@ -6,10 +6,10 @@ This is not a full 15-row Table 2 reproduction.
 
 ## Data
 
-Place the Flex-MoE ADNI package under `adni_raw_flexmoe/` (gitignored):
+Place the Flex-MoE ADNI package under `adni/data/raw/` (gitignored). A leftover copy at repo-root `adni_raw_flexmoe/` is still accepted.
 
 ```text
-adni_raw_flexmoe/
+adni/data/raw/
 ├── diagnosis/DXSUM.csv
 ├── clinical/{MEDHIST,NEUROEXM,PTDEMOG,RECCMEDS,VITALS}.rda
 ├── biospecimen/APOERES.csv
@@ -29,7 +29,7 @@ Labels: subjects whose `DXSUM.DIAGNOSIS` is unique and in `{1,2,3}` → CN / MCI
 
 Flex-MoE uses 70 / 15 / 15 with **val and test drawn from the intersection of the active modalities**. Their `PTID_splits.json` is not public.
 
-The locked split is `adni_flexmoe/PTID_splits.json` (seed 42, same protocol, C ∩ B ∩ I for val/test): **2063 / 442 / 442**. Do not regenerate it. Pass `--allow_generated_split` so the loader may *read* this file when Flex-MoE’s official JSON is absent; an existing file is never overwritten.
+The locked split is `adni/data/PTID_splits.json` (seed 42, same protocol, C ∩ B ∩ I for val/test): **2063 / 442 / 442**. Do not regenerate it. Pass `--allow_generated_split` so the loader may *read* this file when Flex-MoE’s official JSON is absent; an existing file is never overwritten.
 
 Test majority-class accuracy is **41.86%**.
 
@@ -111,16 +111,14 @@ Three seeds `{0,1,2}`, `--center_inputs`, frozen split, G omitted. Mean accuracy
 
 Individual seeds for the 7-combo mean: 56.98, 53.36, 57.14. This is the honest Flex-MoE C/B/I ceiling on the frozen split, not Table 2.
 
-Best-validation weights from that run are in `adni_flexmoe/checkpoints/best_adni_model_seed{0,1,2}.pth`.
+Best-validation weights from that run are in `adni/checkpoints/best_adni_model_seed{0,1,2}.pth`.
 
 ## Reproduce
 
 ```bash
 pip install -r requirements.txt
 
-python run_adni_pipeline.py \
-  --data_root adni_raw_flexmoe \
-  --split_json adni_flexmoe/PTID_splits.json \
+python -m adni.process.run_pipeline \
   --allow_generated_split \
   --center_inputs \
   --epochs 60 \
@@ -134,9 +132,7 @@ python run_adni_pipeline.py \
 Sanity-check loaders and the frozen split without training:
 
 ```bash
-python run_adni_pipeline.py \
-  --data_root adni_raw_flexmoe \
-  --split_json adni_flexmoe/PTID_splits.json \
+python -m adni.process.run_pipeline \
   --allow_generated_split \
   --center_inputs \
   --dry_run

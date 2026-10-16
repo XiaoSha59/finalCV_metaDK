@@ -8,14 +8,16 @@
 set -e
 set -o pipefail
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+PROCESS="$(cd "$(dirname "$0")" && pwd)"
+BRATS="$(cd "$PROCESS/.." && pwd)"
+REPO="$(cd "$BRATS/.." && pwd)"
 PYTHON="${PYTHON:-python}"
-export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH="$PROCESS:$REPO${PYTHONPATH:+:$PYTHONPATH}"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 NUM_WORKERS="${NUM_WORKERS:-6}"
-cd "$ROOT"
+cd "$REPO"
 
-mkdir -p logs snapshots/BraTS18_phase1_80k snapshots/BraTS18_phase2_115k
+mkdir -p "$BRATS/logs" "$BRATS/checkpoints/phase1_80k" "$BRATS/checkpoints/phase2_115k"
 
 echo "=========================================================="
 echo "MetaKD BraTS 2018  2-Phase Training"
@@ -24,7 +26,7 @@ echo "Host: $(hostname)"
 nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv
 echo "=========================================================="
 
-PHASE1_SNAP="snapshots/BraTS18_phase1_80k"
+PHASE1_SNAP="$BRATS/checkpoints/phase1_80k"
 PHASE1_CKPT="$PHASE1_SNAP/final.pth"
 
 if [ -f "$PHASE1_CKPT" ]; then
@@ -42,10 +44,13 @@ else
         PHASE1_RELOAD="True"
         echo "    (Resuming interrupted Phase 1 from: $PHASE1_RELOAD_PATH)"
     fi
-    $PYTHON train.py \
+    $PYTHON "$PROCESS/train.py" \
         --snapshot_dir "$PHASE1_SNAP/" \
         --reload_from_checkpoint "$PHASE1_RELOAD" \
         --reload_path "$PHASE1_RELOAD_PATH" \
+        --data_dir "$BRATS/data" \
+        --train_list BraTS18_metaTrain.csv \
+        --val_list BraTS18_metaVal.csv \
         --num_steps 80000 \
         --val_pred_every 100 \
         --batch_size 2 \
@@ -55,11 +60,11 @@ else
         --random_seed 999 \
         --mode "0,1,2,3" \
         --num_workers "$NUM_WORKERS" \
-        2>&1 | tee -a logs/brats_phase1.log
+        2>&1 | tee -a "$BRATS/logs/brats_phase1.log"
     echo ">>> Phase 1 completed at $(date)"
 fi
 
-PHASE2_SNAP="snapshots/BraTS18_phase2_115k"
+PHASE2_SNAP="$BRATS/checkpoints/phase2_115k"
 
 echo ""
 echo "=========================================================="
@@ -79,10 +84,13 @@ if [ -f "$PHASE2_SNAP/last.pth" ]; then
     echo "    (Resuming interrupted Phase 2 from: $RELOAD_PATH)"
 fi
 
-$PYTHON train.py \
+$PYTHON "$PROCESS/train.py" \
     --snapshot_dir "$PHASE2_SNAP/" \
     --reload_from_checkpoint True \
     --reload_path "$RELOAD_PATH" \
+    --data_dir "$BRATS/data" \
+    --train_list BraTS18_metaTrain.csv \
+    --val_list BraTS18_metaVal.csv \
     --num_steps 115000 \
     --val_pred_every 500 \
     --batch_size 2 \
@@ -92,7 +100,7 @@ $PYTHON train.py \
     --random_seed 999 \
     --mode "random" \
     --num_workers "$NUM_WORKERS" \
-    2>&1 | tee -a logs/brats_phase2.log
+    2>&1 | tee -a "$BRATS/logs/brats_phase2.log"
 
 echo ""
 echo "=========================================================="

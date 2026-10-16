@@ -1,10 +1,10 @@
 """
-AudioVision-MNIST Missing Modality Classification Package.
-Reproducing MetaKD (arXiv:2405.07155) on Multi-Modal Image-Audio benchmark.
+AudioVision-MNIST missing-modality classification.
+Reproducing MetaKD (arXiv:2405.07155) Table 3.
 """
 
-from .models import MetaKDAudioVision, ImageEncoder, AudioEncoder, LeNet5, SNetPluse, KDWeights2D
-from .dataset import AudioVisionMNIST, get_audiovision_loaders
+from .process.models import MetaKDAudioVision, ImageEncoder, AudioEncoder, LeNet5, SNetPluse, KDWeights2D
+from .data.dataset import AudioVisionMNIST, get_audiovision_loaders
 
 __all__ = [
     "MetaKDAudioVision",

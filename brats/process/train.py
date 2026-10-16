@@ -1,22 +1,26 @@
 import argparse
-import sys
-sys.path.append("..")
-
-import torch
-import numpy as np
-import torch.optim as optim
-import torch.backends.cudnn as cudnn
-import torch.nn.functional as F
-import torch.nn as nn
-
 import os
 import os.path as osp
+import sys
 import timeit
 from math import ceil
+
+import numpy as np
+import torch
+import torch.backends.cudnn as cudnn
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 from tensorboardX import SummaryWriter
 
+_PROCESS_DIR = os.path.dirname(os.path.abspath(__file__))
+_BRATS_ROOT = os.path.dirname(_PROCESS_DIR)
+_REPO_ROOT = os.path.dirname(_BRATS_ROOT)
+sys.path.insert(0, _PROCESS_DIR)
+sys.path.insert(0, _REPO_ROOT)
+
 from models import DualNet, conv3x3x3
-from datasets import BraTSDataSet, BraTSValDataSet, my_collate
+from brats.data import BraTSDataSet, BraTSValDataSet, my_collate
 import losses as loss
 
 start = timeit.default_timer()
@@ -38,11 +42,11 @@ def get_arguments():
     """
     parser = argparse.ArgumentParser(description="Shared-Specific model for 3D Medical Image Segmentation.")
 
-    parser.add_argument("--data_dir", type=str, default='./datalist/')
-    parser.add_argument("--train_list", type=str, default='BraTS18/BraTS18_metaTrain.csv')
-    parser.add_argument("--val_list", type=str, default='BraTS18/BraTS18_metaVal.csv')
-    parser.add_argument("--snapshot_dir", type=str, default='snapshots/BraTS18_MetaKD_115k/')
-    parser.add_argument("--reload_path", type=str, default='snapshots/BraTS18_warmup/final.pth')
+    parser.add_argument("--data_dir", type=str, default=os.path.join(_BRATS_ROOT, "data"))
+    parser.add_argument("--train_list", type=str, default="BraTS18_metaTrain.csv")
+    parser.add_argument("--val_list", type=str, default="BraTS18_metaVal.csv")
+    parser.add_argument("--snapshot_dir", type=str, default=os.path.join(_BRATS_ROOT, "checkpoints", "phase2_115k"))
+    parser.add_argument("--reload_path", type=str, default=os.path.join(_BRATS_ROOT, "checkpoints", "phase1_80k", "final.pth"))
     parser.add_argument("--reload_from_checkpoint", type=str2bool, default=False)
     parser.add_argument("--input_size", type=str, default='80,160,160')
     parser.add_argument("--batch_size", type=int, default=2)

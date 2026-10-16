@@ -19,6 +19,38 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import torchvision.datasets as datasets
 
+_AV_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_REPO_ROOT = os.path.abspath(os.path.join(_AV_ROOT, ".."))
+
+
+def _first_existing(*paths):
+    for path in paths:
+        if os.path.exists(path):
+            return path
+    return paths[0]
+
+
+def _default_audio_dir():
+    return _first_existing(
+        os.path.join(_AV_ROOT, "data", "Audio_MNIST", "sound"),
+        os.path.join(_REPO_ROOT, "data", "Audio_MNIST", "sound"),
+    )
+
+
+def _default_mnist_dir():
+    return _first_existing(
+        os.path.join(_AV_ROOT, "data", "MNIST"),
+        os.path.join(_REPO_ROOT, "data", "MNIST"),
+    )
+
+
+def _default_cache_path():
+    return _first_existing(
+        os.path.join(_AV_ROOT, "data", "Audio_MNIST", "audiovision_1500_smil_heldout.npz"),
+        os.path.join(_REPO_ROOT, "data", "Audio_MNIST", "audiovision_1500_smil_heldout.npz"),
+        os.path.join(_AV_ROOT, "data", "Audio_MNIST", "audiovision_1500_smil_heldout.npz"),
+    )
+
 
 def wav2mfcc(wav_path: str, n_mfcc: int = 20, target_frames: int = 20) -> np.ndarray:
     """SMIL MFCC. Requires librosa, matching ``src/utils/wav2mfcc.py``."""
@@ -70,12 +102,15 @@ def _recording_index(wav_path: str) -> int:
 
 
 def build_audiovision_pairs(
-    audio_dir: str = "data/Audio_MNIST/sound",
-    mnist_dir: str = "data/MNIST",
-    cache_path: str = "data/Audio_MNIST/audiovision_1500_smil_heldout.npz",
+    audio_dir: str = None,
+    mnist_dir: str = None,
+    cache_path: str = None,
     num_samples_per_digit: int = 150,
 ):
     """Build 150 paired samples per digit and cache the normalized arrays."""
+    audio_dir = audio_dir or _default_audio_dir()
+    mnist_dir = mnist_dir or _default_mnist_dir()
+    cache_path = cache_path or _default_cache_path()
     if os.path.exists(cache_path):
         data = np.load(cache_path)
         return data["images"], data["audios"], data["labels"], data["recording_index"], data["speakers"]
@@ -194,8 +229,8 @@ def _split_indices(labels, recording_index, seed):
 
 
 def get_audiovision_loaders(
-    audio_dir: str = "data/Audio_MNIST/sound",
-    mnist_dir: str = "data/MNIST",
+    audio_dir: str = None,
+    mnist_dir: str = None,
     batch_size: int = 32,
     missing_modality: str = "none",
     available_rate: float = 1.0,

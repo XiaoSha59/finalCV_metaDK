@@ -24,6 +24,22 @@ from batchgenerators.transforms.noise_transforms import (
 )
 from batchgenerators.transforms.resample_transforms import SimulateLowResolutionTransform
 
+BRATS_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+REPO_ROOT = os.path.abspath(os.path.join(BRATS_ROOT, ".."))
+
+
+def _resolve_volume_root(rel_path):
+    """CSV rows are `data/BraTS2018/...`. Prefer brats/data, then repo-root /data."""
+    rel_path = rel_path.replace("\\", "/")
+    candidates = (
+        os.path.join(BRATS_ROOT, rel_path),
+        os.path.join(REPO_ROOT, rel_path),
+    )
+    for candidate in candidates:
+        if os.path.isdir(candidate):
+            return candidate
+    return candidates[0]
+
 
 class BraTSDataSet(data.Dataset):
     """
@@ -52,7 +68,8 @@ class BraTSDataSet(data.Dataset):
         for item in self.img_ids:
             if item[0] == 'BraTS_2020_subject_ID':
                 continue
-            filepath = item[0] + '/' + osp.splitext(osp.basename(item[0]))[0]
+            case_dir = _resolve_volume_root(item[0])
+            filepath = os.path.join(case_dir, osp.splitext(osp.basename(item[0]))[0])
 
             # Support both .nii and .nii.gz
             flair_file = filepath + '_flair.nii' if osp.exists(filepath + '_flair.nii') else filepath + '_flair.nii.gz'
@@ -261,7 +278,8 @@ class BraTSValDataSet(data.Dataset):
         for item in self.img_ids:
             if item[0] == 'BraTS_2020_subject_ID':
                 continue
-            filepath = item[0] + '/' + osp.splitext(osp.basename(item[0]))[0]
+            case_dir = _resolve_volume_root(item[0])
+            filepath = os.path.join(case_dir, osp.splitext(osp.basename(item[0]))[0])
             flair_file = filepath + '_flair.nii' if osp.exists(filepath + '_flair.nii') else filepath + '_flair.nii.gz'
             t1_file = filepath + '_t1.nii' if osp.exists(filepath + '_t1.nii') else filepath + '_t1.nii.gz'
             t1ce_file = filepath + '_t1ce.nii' if osp.exists(filepath + '_t1ce.nii') else filepath + '_t1ce.nii.gz'
@@ -352,7 +370,8 @@ class BraTSEvalDataSet(data.Dataset):
         for item in self.img_ids:
             if item[0] == 'BraTS_2020_subject_ID':
                 continue
-            filepath = item[0] + '/' + osp.splitext(osp.basename(item[0]))[0]
+            case_dir = _resolve_volume_root(item[0])
+            filepath = os.path.join(case_dir, osp.splitext(osp.basename(item[0]))[0])
             flair_file = filepath + '_flair.nii' if osp.exists(filepath + '_flair.nii') else filepath + '_flair.nii.gz'
             t1_file = filepath + '_t1.nii' if osp.exists(filepath + '_t1.nii') else filepath + '_t1.nii.gz'
             t1ce_file = filepath + '_t1ce.nii' if osp.exists(filepath + '_t1ce.nii') else filepath + '_t1ce.nii.gz'

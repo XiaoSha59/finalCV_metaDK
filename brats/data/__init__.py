@@ -2,7 +2,7 @@
 BraTS Dataset Loader and Preprocessing Modules.
 """
 
-from .brats_dataset import (
+from .dataset import (
     BraTSDataSet,
     BraTSValDataSet,
     BraTSEvalDataSet,

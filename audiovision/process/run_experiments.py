@@ -13,9 +13,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from audiovision.train import train_metakd_audiovision, evaluate_accuracy
-from audiovision.dataset import get_audiovision_loaders
-from audiovision.models import MetaKDAudioVision, LeNet5, SNetPluse
+from audiovision.process.train import train_metakd_audiovision, evaluate_accuracy
+from audiovision.data.dataset import get_audiovision_loaders
+from audiovision.process.models import MetaKDAudioVision, LeNet5, SNetPluse
+
+_AV_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 def train_baseline(
@@ -82,7 +84,7 @@ def train_baseline(
             best_test_acc = test_acc
             best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
 
-    ckpt_dir = "audiovision/checkpoints"
+    ckpt_dir = os.path.join(_AV_ROOT, "checkpoints")
     os.makedirs(ckpt_dir, exist_ok=True)
     names = {"image_only": "lower_image", "audio_only": "lower_audio", "full": "upper_full"}
     ckpt_path = os.path.join(ckpt_dir, f"{names[modality]}.pth")

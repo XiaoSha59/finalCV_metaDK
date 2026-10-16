@@ -21,8 +21,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.neighbors import NearestNeighbors
 from torch.utils.data import DataLoader, TensorDataset
 
-from adni_flexmoe.models.metakd_model import MetaKDADNIModel
-from adni_flexmoe.preprocess.flexmoe_tables import load_biospecimen, load_clinical, load_image, load_labels
+_PROCESS_DIR = os.path.dirname(os.path.abspath(__file__))
+ADNI_ROOT = os.path.dirname(_PROCESS_DIR)
+REPO_ROOT = os.path.dirname(ADNI_ROOT)
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from adni.process.models.metakd_model import MetaKDADNIModel
+from adni.data.preprocess.flexmoe_tables import load_biospecimen, load_clinical, load_image, load_labels
 
 MODS = ("C", "G", "B", "I")
 PAPER_BENCHMARKS = {
@@ -57,9 +63,9 @@ def scenarios_for(drop_g):
 
 def get_arguments():
     parser = argparse.ArgumentParser(description="MetaKD Table 2 / Flex-MoE ADNI protocol")
-    parser.add_argument("--data_root", type=str, default="adni_raw_flexmoe")
-    parser.add_argument("--processed_root", type=str, default="adni_flexmoe/data/adni")
-    parser.add_argument("--split_json", type=str, default="")
+    parser.add_argument("--data_root", type=str, default=os.path.join(ADNI_ROOT, "data", "raw"))
+    parser.add_argument("--processed_root", type=str, default=os.path.join(ADNI_ROOT, "data", "processed"))
+    parser.add_argument("--split_json", type=str, default=os.path.join(ADNI_ROOT, "data", "PTID_splits.json"))
     parser.add_argument("--genomic_h5ad", type=str, default="")
     parser.add_argument("--tools_dir", type=str, default="")
     parser.add_argument("--allow_generated_split", action="store_true")
@@ -162,6 +168,10 @@ def make_split(args, subjects, observed):
 
 
 def load_protocol(args):
+    if not os.path.isdir(args.data_root):
+        legacy = os.path.join(REPO_ROOT, "adni_raw_flexmoe")
+        if os.path.isdir(legacy):
+            args.data_root = legacy
     subjects = load_labels(args.data_root)
     ptids = subjects["PTID"]
     print(f"Labels: {len(subjects)}  CN={(subjects.label == 0).sum()}  "
@@ -178,7 +188,7 @@ def load_protocol(args):
         print("Observed (G omitted): " + ", ".join(f"{m}={int(observed[:, i].sum())}" for i, m in enumerate(mods))
               + f" | all three={int(observed.all(1).sum())}")
     else:
-        from adni_flexmoe.preprocess.genomic_preprocess import h5ad_to_matrix, load_or_build_genomic
+        from adni.data.preprocess.genomic_preprocess import h5ad_to_matrix, load_or_build_genomic
         h5ad = args.genomic_h5ad or os.path.join(args.processed_root, "genomic", "genomic_merged.h5ad")
         h5ad = load_or_build_genomic(args.data_root, h5ad, args.tools_dir, args.allow_raw_genomic_fallback)
         genomic, obs_g = h5ad_to_matrix(h5ad, ptids)
@@ -423,9 +433,10 @@ def run_seed(seed, data, args, device):
                   f"Val Acc {val['acc']:.2f} Table2 {val_t2:.2f} F1 {val['f1']:.2f} | "
                   f"IWV " + " ".join(f"{m}:{w[i]:.3f}" for i, m in enumerate(mods)), flush=True)
 
-    os.makedirs("checkpoints", exist_ok=True)
-    torch.save(last_state, f"checkpoints/last_adni_model_seed{seed}.pth")
-    torch.save(best_state, f"checkpoints/best_adni_model_seed{seed}.pth")
+    ckpt_dir = os.path.join(ADNI_ROOT, "checkpoints")
+    os.makedirs(ckpt_dir, exist_ok=True)
+    torch.save(last_state, os.path.join(ckpt_dir, f"last_adni_model_seed{seed}.pth"))
+    torch.save(best_state, os.path.join(ckpt_dir, f"best_adni_model_seed{seed}.pth"))
     # Flex-MoE official ADNI run keeps the best validation-accuracy checkpoint.
     if args.last_checkpoint:
         model.load_state_dict(last_state)
@@ -518,5 +529,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     main()

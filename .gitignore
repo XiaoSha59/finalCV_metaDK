@@ -3,17 +3,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# PyTorch checkpoints and models
+# PyTorch checkpoints (locked benchmark weights are un-ignored below)
 *.pth
 *.pt
 *.ckpt
 snapshots/
-checkpoints/
-adni/checkpoints/
-adni/data_processed/
+/checkpoints/
 
-# Dataset and output folders
-data/
+# Dataset dumps and outputs
+/data/
 outputs/
 logs/
 *.nii
@@ -21,6 +19,15 @@ logs/
 *.npz
 *.tar.gz
 *.zip
+
+# Per-benchmark raw data (keep lists / loaders tracked)
+brats/data/BraTS2018/
+brats/checkpoints/
+adni/data/raw/
+adni/data/processed/
+adni/logs/
+audiovision/data/Audio_MNIST/
+audiovision/data/MNIST/
 
 # Cloud runner, Kaggle metadata, and one-off experiment scripts (local only)
 metakd.service
@@ -32,8 +39,6 @@ run_master_pipeline.sh
 dataset-metadata.json
 /split_data.py
 /eval.py
-utils/draw_log_*.py
-datalist/BraTS18/BraTS18_test_quick.csv
 build_cache.py
 check_*.py
 extract_paper.py
@@ -61,9 +66,9 @@ audiovision/checkpoints/*
 !audiovision/checkpoints/metakd_visual_rate_*.pth
 
 # Locked ADNI C/B/I 3-seed checkpoints (drop-G, centered).
-!adni_flexmoe/checkpoints/
-adni_flexmoe/checkpoints/*
-!adni_flexmoe/checkpoints/best_adni_model_seed*.pth
+!adni/checkpoints/
+adni/checkpoints/*
+!adni/checkpoints/best_adni_model_seed*.pth
 
 # IDE and OS files
 .vscode/
@@ -79,28 +84,19 @@ venv/
 env/
 .env/
 
-# Data folders & temporary scratch files
+# Local leftovers that stay on this machine
+adni_local/
 adni_raw_flexmoe/
 kaggle_adni_run/
 DATADIC_*.csv
 scratch_*
 *.ipynb
-
-# ADNI copies that stay on this machine only (not GitHub)
-adni/
 run_cbi_metakd.py
 KAGGLE_ADNI_CHECKLIST.md
 flexmoe_*.txt
 metakd_adni_details.txt
 metakd_page*.txt
-adni_flexmoe/data/
-adni_flexmoe/notebooks/
-adni_flexmoe/models/resnet34_1d.py
-adni_flexmoe/preprocess/genomic_preprocess.py
-adni_flexmoe/preprocess/multimodal_processor.py
-adni_flexmoe/preprocess/run_official_genomic.sh
-adni_flexmoe/train.py
-adni_flexmoe/eval.py
-
-
-
+adni/data/preprocess/genomic_preprocess.py
+adni/data/preprocess/multimodal_processor.py
+adni/data/preprocess/run_official_genomic.sh
+adni/process/models/resnet34_1d.py

@@ -1,16 +1,23 @@
 import argparse
+import csv
 import os
 import sys
-import csv
 from math import ceil
-import numpy as np
+
 import nibabel as nib
+import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils import data
 
+_PROCESS_DIR = os.path.dirname(os.path.abspath(__file__))
+_BRATS_ROOT = os.path.dirname(_PROCESS_DIR)
+_REPO_ROOT = os.path.dirname(_BRATS_ROOT)
+sys.path.insert(0, _PROCESS_DIR)
+sys.path.insert(0, _REPO_ROOT)
+
 from models import DualNet
-from datasets import BraTSEvalDataSet
+from brats.data import BraTSEvalDataSet
 from utils.metrics import dice_score
 from utils.postprocess import continues_region_extract, regions_to_label, label_to_regions
 
@@ -103,8 +110,8 @@ def predict_sliding(args, net, img_list, tile_size, classes):
 
 def get_arguments():
     parser = argparse.ArgumentParser(description="Evaluate MetaKD across all 15 missing modality combinations.")
-    parser.add_argument("--data_dir", type=str, default='./datalist/')
-    parser.add_argument("--data_list", type=str, default='BraTS18/BraTS18_test.csv')
+    parser.add_argument("--data_dir", type=str, default=os.path.join(_BRATS_ROOT, "data"))
+    parser.add_argument("--data_list", type=str, default="BraTS18_test.csv")
     parser.add_argument("--input_size", type=str, default='80,160,160')
     parser.add_argument("--num_classes", type=int, default=3)
     parser.add_argument("--restore_from", type=str, required=True, help="Path to checkpoint .pth file")
@@ -112,7 +119,7 @@ def get_arguments():
     parser.add_argument("--weight_std", type=bool, default=True)
     parser.add_argument("--norm_cfg", type=str, default='IN')
     parser.add_argument("--activation_cfg", type=str, default='LeakyReLU')
-    parser.add_argument("--output_csv", type=str, default='logs/brats_table1_results.csv')
+    parser.add_argument("--output_csv", type=str, default=os.path.join(_BRATS_ROOT, "logs", "brats_table1_results.csv"))
     parser.add_argument("--postprocess", type=lambda v: v.lower() in ('true', '1', 'yes', 'y', 't'), default=True,
                         help="Also report Dice after the author's postprocess (written to *_postproc.csv)")
     return parser.parse_args()
