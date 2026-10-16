@@ -71,7 +71,6 @@ adni_flexmoe/preprocess/multimodal_processor.py
 adni_flexmoe/preprocess/run_official_genomic.sh
 adni_flexmoe/train.py
 adni_flexmoe/eval.py
-adni_flexmoe/README.md
 
 
 
