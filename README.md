@@ -1,282 +1,134 @@
-# MetaKD: Meta-Learned Modality-Weighted Knowledge Distillation
+# MetaKD
 
-[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
-[![Paper](https://img.shields.io/badge/Paper-arXiv%3A2405.07155-b31b1b.svg)](https://arxiv.org/pdf/2405.07155)
+Reproduction of [Meta-Learned Modality-Weighted Knowledge Distillation](https://arxiv.org/abs/2405.07155) (Wang et al., 2024) on the three public benchmarks in the paper:
 
-This repository contains the reproduction and modular implementation of **MetaKD** (*Meta-Learned Modality-Weighted Knowledge Distillation for Robust Multi-Modal Learning with Missing Data*).
+| Benchmark | Paper table | This repo |
+|---|---|---|
+| BraTS 2018 segmentation | Table 1 (15 missing-MRI combinations) | Two-phase 80k → 115k trainer, last checkpoint, 15-combo eval |
+| ADNI CN / MCI / AD | Table 2 (C, G, B, I) | **C / B / I only.** Genomic is omitted; see [adni_flexmoe/README.md](adni_flexmoe/README.md) |
+| AudioVision-MNIST | Table 3 (missing audio / visual rates) | Held-out 900 / 150 / 450 split, locked checkpoints |
 
----
+The authors’ code ([billhhh/MetaKD](https://github.com/billhhh/MetaKD)) is BraTS only. Classification follows Algorithm 1, Eq. (2) mean-fill, and Eq. (5) pairwise L1 KD with a learned importance-weight vector. Hyperparameters for ADNI and AudioVision come from the AudioVision supplement (Adam \(10^{-3}\), weight decay \(10^{-2}\), StepLR \(20\times 0.9\); IWV Adam \(10^{-2}\)). BraTS follows the official `run.sh`: SGD, Nesterov 0.99, lr \(10^{-2}\), poly decay, 115k steps, no model selection.
 
-## 📖 What Does This Project Do?
+This is **not** a claim that every paper number is recovered. Table 2 G-only 77.32 and C-only 59.65 are not reproducible from the public Flex-MoE tables; Table 1 in the paper is CBICA online (66 cases), while eval here is the local 57-case split.
 
-In clinical MRI, patients often have **missing modalities** (e.g., missing T1ce due to contrast allergy, or missing Flair/T2 due to scan time constraints). 
+## Setup
 
-### The Core Problem:
-Different MRI modalities carry different levels of clinical information:
-* **T1ce** is critical for **Enhancing Tumor (ET)** and **Tumor Core (TC)**.
-* **Flair** is critical for **Whole Tumor (WT)**.
-* When key modalities are missing, conventional deep learning models suffer severe performance drops.
-
-### The MetaKD Solution:
-1. **Meta-Learning Importance Weights (IWV):** Dynamically learns a modality importance weight vector $w = [w_{\text{flair}}, w_{\text{t1}}, w_{\text{t1ce}}, w_{\text{t2}}]^\top$ via bi-level optimization.
-2. **Modality-Weighted Knowledge Distillation:** Uses the learned weights ($w_i / w_j$) to distill rich feature representations from high-importance modalities to low-importance or missing ones.
-3. **Feature Imputation:** Simple and effective mean feature imputation across available modalities.
-
-```
-Available Modalities (e.g., Flair + T1) ──> [Shared 3D Encoder] ──> [Feature Imputation & Meta-Distillation] ──> [3D Decoder] ──> (ET, TC, WT Segmentation)
-```
-
----
-
-## 📁 Project Structure
-
-```text
-├── data/                        # Raw BraTS 2018 dataset (gitignored)
-│   └── BraTS2018/
-│       └── MICCAI_BraTS_2018_Data_Training/ (285 labeled cases)
-├── datalist/                    # Stratified split lists (Zero data leakage)
-│   └── BraTS18/
-│       ├── BraTS18_metaTrain.csv   # Meta-training set (~70%, 199 cases)
-│       ├── BraTS18_metaVal.csv     # Meta-validation set (~10%, 29 cases)
-│       └── BraTS18_test.csv        # Local test set (~20%, 57 cases)
-├── datasets/                    # DataLoader & 3D patch data augmentation
-│   ├── __init__.py
-│   └── brats_dataset.py
-├── models/                      # MetaKD model architecture
-│   ├── __init__.py
-│   ├── dual_net.py              # DualNet + Modality Weighting (IWV)
-│   ├── resnet50.py              # 3D ResNet-50 Backbone
-│   └── dsn.py                   # Domain-Specific Normalization
-├── losses/                      # Loss functions
-│   ├── __init__.py
-│   └── loss_dual.py             # Pairwise Modality KD Loss + Dice/BCE losses
-├── utils/                       # Evaluation metrics & helpers
-│   ├── __init__.py
-│   ├── metrics.py               # Dice score for ET, TC, WT & table printer
-│   └── custom_transforms.py     # 3D spatial/elastic data augmentations
-├── train.py                     # Main bi-level meta-learning training script
-├── eval.py                      # Single-mode evaluation script
-├── eval_all_modalities.py       # Full 15-modality evaluation benchmark
-├── split_data.py                # Stratified split generator (70/10/20)
-├── requirements.txt             # Python dependencies
-└── README.md
-```
-
----
-
-## 🚀 Step-by-Step Reproduction Guide
-
-### 1. Environment Setup
-
-Clone this repository and install dependencies:
 ```bash
 git clone https://github.com/XiaoSha59/finalCV_metaDK.git
 cd finalCV_metaDK
-
 python -m venv .venv
-# On Windows PowerShell:
-.venv\Scripts\Activate.ps1
-# On Linux / GCP Cloud:
+# Windows: .venv\Scripts\Activate.ps1
 source .venv/bin/activate
-
 pip install -r requirements.txt
 ```
 
----
+PyTorch with CUDA is required for BraTS. AudioVision and ADNI run on CPU.
 
-### 2. Dataset Preparation & Stratified Split
+## Layout
 
-1. Download the **BraTS 2018** training dataset and place it under `data/BraTS2018/`:
 ```text
-data/BraTS2018/MICCAI_BraTS_2018_Data_Training/
-├── HGG/ (210 cases)
-└── LGG/ (75 cases)
+train.py  eval.py  eval_all_modalities.py   # BraTS
+run_brats_2phase.sh  run_eval_pipeline.sh   # 80k warmup → 115k MetaKD → Table 1
+datasets/  models/  losses/  utils/
+datalist/BraTS18/                           # 199 / 29 / 57 split (do not regenerate)
+
+run_adni_pipeline.py
+adni_flexmoe/                               # C/B/I loaders, frozen split, 3-seed weights
+  README.md  PTID_splits.json  checkpoints/
+
+audiovision/                                # Table 3
+  README.md  dataset.py  models.py  train.py  run_experiments.py  checkpoints/
 ```
 
-2. Run the stratified split script to create **Train (199 cases)**, **Meta-Val (29 cases)**, and **Test (57 cases)** without data leakage:
-```bash
-python split_data.py
-```
+Raw data is gitignored: `data/BraTS2018/`, `data/Audio_MNIST/`, `adni_raw_flexmoe/`.
 
 ---
 
-### 3. Training the MetaKD Model
+## BraTS 2018 (Table 1)
 
-MetaKD is trained in **two stages**:
+285 labeled cases (210 HGG / 75 LGG). Place the training tree at:
 
-#### Stage 1: Full-Modality Warmup (80,000 iterations)
+```text
+data/BraTS2018/MICCAI_BraTS_2018_Data_Training/{HGG,LGG}/
+```
+
+The lists in `datalist/BraTS18/` are already the 70 / 10 / 20 split (199 / 29 / 57). Do not run `split_data.py` unless you intend to change it.
+
+Training is the official two-phase schedule. Phase 1: all four modalities, 80k steps. Phase 2: reload `final.pth`, `--mode=random` (drop 0–3 modalities), continue to 115k. The paper evaluates the **last** checkpoint, not the best validation Dice.
+
+```bash
+bash run_brats_2phase.sh          # writes snapshots/BraTS18_phase{1_80k,2_115k}/
+bash run_eval_pipeline.sh         # 15 combinations, raw + author postprocess CSVs
+```
+
+Equivalent Python (phase 2 only, after warmup):
+
 ```bash
 python train.py \
-  --snapshot_dir=snapshots/BraTS18_warmup/ \
-  --input_size=80,160,160 \
-  --batch_size=2 \
-  --num_steps=80000 \
-  --val_pred_every=100 \
-  --learning_rate=1e-2 \
-  --num_classes=3 \
-  --train_list=BraTS18/BraTS18_metaTrain.csv \
-  --val_list=BraTS18/BraTS18_metaVal.csv \
-  --weight_std=True \
-  --reload_from_checkpoint=False
+  --snapshot_dir snapshots/BraTS18_phase2_115k/ \
+  --reload_from_checkpoint True \
+  --reload_path snapshots/BraTS18_phase1_80k/final.pth \
+  --num_steps 115000 \
+  --mode random \
+  --batch_size 2 --learning_rate 1e-2 \
+  --train_list BraTS18/BraTS18_metaTrain.csv \
+  --val_list BraTS18/BraTS18_metaVal.csv
 ```
 
-#### Stage 2: MetaKD with Random Missing Modality (115,000 iterations)
-```bash
-python train.py \
-  --snapshot_dir=snapshots/BraTS18_MetaKD_115k/ \
-  --input_size=80,160,160 \
-  --batch_size=2 \
-  --num_steps=115000 \
-  --val_pred_every=500 \
-  --learning_rate=1e-2 \
-  --num_classes=3 \
-  --train_list=BraTS18/BraTS18_metaTrain.csv \
-  --val_list=BraTS18/BraTS18_metaVal.csv \
-  --weight_std=True \
-  --reload_path=snapshots/BraTS18_warmup/final.pth \
-  --reload_from_checkpoint=True \
-  --mode=random
-```
+`run_brats_autopilot.sh` resumes from `last.pth` after a GCP host restart, then runs eval. Paper Table 1 averages (ET / TC / WT **63.74 / 79.15 / 86.90**) are from the **online** 66-case set after postprocess. Numbers from `eval_all_modalities.py` are the **local** 57-case test and will not match that row.
 
 ---
 
-### 4. Evaluating All 15 Missing Modality Combinations
+## ADNI (Table 2, C / B / I)
 
-To test the trained model across **all 15 possible combinations of missing modalities** (reproducing Table 1 in the paper) and output the full Dice score table:
+Full protocol, why G is dropped, and the clinical centering fix: **[adni_flexmoe/README.md](adni_flexmoe/README.md)**.
+
+Loaders are a port of [UNITES-Lab/Flex-MoE](https://github.com/UNITES-Lab/Flex-MoE) (clinical / biospecimen / UCSFFSX7). Genomic is **off by default**. MetaKD and Flex-MoE do not release the Table 2 SNP matrix or `PTID_splits.json`; a Flex-MoE-style PLINK build locally tops out around 43–49% vs paper G **77.32**. Clinical one-hots also have no 59.65-level 3-class signal (logistic ~45, MetaKD ~50). Locked run: drop G, `--center_inputs`, frozen split **2063 / 442 / 442**.
 
 ```bash
-python eval_all_modalities.py --restore_from=snapshots/BraTS18_MetaKD_115k/final.pth
+# data: adni_raw_flexmoe/{diagnosis,clinical,biospecimen,image}/  (ADNI license)
+
+python run_adni_pipeline.py \
+  --data_root adni_raw_flexmoe \
+  --split_json adni_flexmoe/PTID_splits.json \
+  --allow_generated_split \
+  --center_inputs \
+  --seeds 0,1,2 \
+  --output_csv logs/adni_table2_results.csv
 ```
 
-#### Expected Evaluation Table:
-```text
------------------------------------------------------------------------------------------------
-Modalities             | Enhancing Tumor (ET) | Tumor Core (TC)  | Whole Tumor (WT) | Average   
------------------------------------------------------------------------------------------------
-All (Fl+T1+T1c+T2)     |              79.74%  |          86.20%  |          90.92%  |    85.62%
-Fl+T1+T1c              |              77.66%  |          85.36%  |          90.70%  |    84.57%
-T1c only               |              76.22%  |          81.98%  |          77.72%  |    78.64%
-Flair only             |              47.37%  |          73.01%  |          89.11%  |    69.83%
-...
------------------------------------------------------------------------------------------------
-```
+| | Ours (3 seeds) | Paper (7 non-G rows) |
+|---|---:|---:|
+| C | 50.45 ± 1.26 | 59.65 |
+| 7-combo mean | 55.83 ± 2.14 | 59.69 |
+
+Weights: `adni_flexmoe/checkpoints/best_adni_model_seed{0,1,2}.pth`. Do not restore `PTCOGBEG` / `PTADDX` / `PTADBEG`.
 
 ---
 
-## ☁️ Cloud & Remote Training Instructions
+## AudioVision-MNIST (Table 3)
 
-### 🌟 Training on Google Cloud Platform (GCP - Linux VM)
+Data recipe, split, and MFCC steps: **[audiovision/README.md](audiovision/README.md)**. Encoders and MFCCs follow [SMIL](https://github.com/deep-real/SMIL).
 
-1. **SSH into your GCP VM with GPU:**
-   ```bash
-   gcloud compute ssh <YOUR_VM_NAME> --zone=<YOUR_ZONE>
-   ```
-
-2. **Verify NVIDIA GPU & CUDA:**
-   ```bash
-   nvidia-smi
-   ```
-
-3. **Clone and Install:**
-   ```bash
-   git clone https://github.com/XiaoSha59/finalCV_metaDK.git
-   cd finalCV_metaDK
-
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-   pip install -r requirements.txt
-   ```
-
-4. **Run in Background with `tmux` (Prevents SSH disconnection from stopping training):**
-   ```bash
-   tmux new -s metakd
-   # Run Stage 1 or Stage 2 python train.py command here
-   # Detach tmux: Press Ctrl+B, then D
-   # Re-attach anytime: tmux attach -t metakd
-   ```
-
-5. **Auto-Recovery if Preemptible VM restarts:**
-   Simply add `--reload_from_checkpoint=True --reload_path=snapshots/BraTS18_MetaKD_115k/last.pth` to resume from the exact last saved iteration!
-
----
-
-### 🌟 Training on Kaggle (P100 / T4 GPU)
-
-1. **Create a new Kaggle Notebook:**
-   * Go to **Settings** $\rightarrow$ **Accelerator** $\rightarrow$ Select **GPU P100** or **GPU T4 x2**.
-   * Go to **Data** $\rightarrow$ **Add Input** $\rightarrow$ Search and add **BraTS 2018 Dataset**.
-
-2. **Setup and Symlink Data:**
-   ```python
-   # Cell 1: Clone and install
-   !git clone https://github.com/XiaoSha59/finalCV_metaDK.git
-   %cd finalCV_metaDK
-   !pip install -r requirements.txt
-   
-   # Cell 2: Symlink dataset to data/BraTS2018/
-   !mkdir -p data/BraTS2018
-   !ln -s /kaggle/input/brats-2018/MICCAI_BraTS_2018_Data_Training data/BraTS2018/MICCAI_BraTS_2018_Data_Training
-   !python split_data.py
-   ```
-
-3. **Train and Save to `/kaggle/working/`:**
-   ```python
-   # Cell 3: Stage 1 Warmup
-   !python train.py \
-     --snapshot_dir=/kaggle/working/snapshots/BraTS18_warmup/ \
-     --input_size=80,160,160 \
-     --batch_size=2 \
-     --num_steps=80000 \
-     --val_pred_every=500 \
-     --learning_rate=1e-2 \
-     --num_classes=3 \
-     --train_list=BraTS18/BraTS18_metaTrain.csv \
-     --val_list=BraTS18/BraTS18_metaVal.csv \
-     --weight_std=True \
-     --reload_from_checkpoint=False
-   ```
-
-4. **Evaluate directly inside Kaggle Notebook:**
-   ```python
-   # Cell 4: 15-Modality Evaluation
-   !python eval_all_modalities.py --restore_from=/kaggle/working/snapshots/BraTS18_MetaKD_115k/final.pth
-   ```
-
----
-
-## 🎧 AudioVision-MNIST Multi-Modal Classification (Paper Section 4.3)
-
-In addition to 3D Medical Segmentation, MetaKD evaluates on the **AudioVision-MNIST** benchmark (combining MNIST digits $28\times 28$ and Free Spoken Digits audio MFCCs $20\times 20$) under incomplete multi-modal learning settings following **SMIL (CVPR 2021)**.
-
-### 📊 Benchmark Protocol & Setup:
-* **Total Samples:** 1,500 paired audio-image samples across digits `0-9`.
-* **Dataset Splits:** Stratified 60% Train (900 pairs), 10% Meta-Val (150 pairs), 30% Test (450 pairs).
-* **Missing Modality Scenarios:**
-  * **Table 3a (Missing Audio):** Visual fully available (100%), Audio available at `{5%, 10%, 15%, 20%}`. Evaluated on **Image-only Test Set**.
-  * **Table 3b (Missing Visual):** Audio fully available (100%), Visual available at `{5%, 10%, 15%, 20%}`. Evaluated on **Audio-only Test Set**.
-
-### 🚀 Running AudioVision-MNIST Reproduction Locally:
-
-Run the automated all-in-one reproduction runner:
 ```bash
+# wavs: data/Audio_MNIST/sound/{0-9}/*.wav   MNIST downloads itself
+
 python -m audiovision.run_experiments
 ```
 
-### 📁 AudioVision Package Structure:
-```text
-audiovision/
-├── __init__.py           # Package exports
-├── dataset.py            # 1,500 pairs extractor & missing rate mask generators
-├── models.py             # LeNet-5 (Visual) + 2D CNN (Audio) + Learnable W_kd (2x2)
-├── train.py              # Bi-level 2-Step Meta Optimizer (SGD Lower + Adam Upper)
-├── evaluate.py           # Evaluation for Image-only & Audio-only modes
-└── run_experiments.py    # Automated runner reproducing Table 3a & Table 3b
-```
+60 epochs, batch 32, seed 42. Locked checkpoints are already in `audiovision/checkpoints/`.
 
----
+| | 5% | 10% | 15% | 20% | LowerB | UpperB |
+|---|---:|---:|---:|---:|---:|---:|
+| 3a image test (ours) | 96.22 | 94.67 | 94.44 | 96.22 | 95.33 | 96.67 |
+| 3a paper MetaKD | 93.56 | 94.22 | 94.89 | 95.11 | 92.35 | 98.22 |
+| 3b audio test (ours) | 85.78 | 88.22 | 87.78 | 87.56 | 90.67 | 96.67 |
+| 3b paper MetaKD | 84.67 | 85.56 | 86.89 | 88.44 | 80.44 | 98.22 |
 
-## 📑 Citation
+The paper’s audio LowerB (80.44) is SMIL’s 21-clip checkpoint, not this 900-clip training set.
+
+## Citation
 
 ```bibtex
 @article{wang2024meta,
