@@ -11,10 +11,11 @@ export PYTHONPATH="$WORKDIR:$PYTHONPATH"
 export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 cd "$WORKDIR"
 
-mkdir -p logs checkpoints data/BraTS2018 adni_raw_flexmoe
+mkdir -p logs checkpoints data/BraTS2018 snapshots
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 
 echo "=========================================================="
-echo "MetaKD MASTER PIPELINE: BraTS 2-Phase → ADNI → POWEROFF"
+echo "MetaKD MASTER PIPELINE: BraTS 2-Phase → Eval 15 Mod → POWEROFF"
 echo "Date: $(date)"
 echo "Host: $(hostname)"
 echo "GPU:"
@@ -32,14 +33,14 @@ echo ">>> [1/2] BraTS 2018 — 2-Phase MetaKD Training"
 echo "=========================================================="
 bash run_brats_2phase.sh
 
-echo ">>> [1/3] BraTS 2018 Training COMPLETED at $(date)"
+echo ">>> [1/2] BraTS 2018 Training COMPLETED at $(date)"
 
 # ----------------------------------------------------------
-# STEP 1.5: BraTS 2018 — 15-Modality Benchmark (Table 1 Reproduction)
+# STEP 2: BraTS 2018 — 15-Modality Benchmark (Table 1 Reproduction)
 # ----------------------------------------------------------
 echo ""
 echo "=========================================================="
-echo ">>> [1.5/3] BraTS 2018 — 15-Modality Evaluation (Table 1)"
+echo ">>> [2/2] BraTS 2018 — 15-Modality Evaluation (Table 1)"
 echo "=========================================================="
 if [ ! -f "logs/brats_table1_results.csv" ]; then
     bash run_eval_pipeline.sh
@@ -47,22 +48,7 @@ else
     echo "BraTS Benchmark already done. (Found logs/brats_table1_results.csv)"
 fi
 
-echo ">>> [1.5/3] BraTS 2018 Evaluation COMPLETED at $(date)"
-
-# ----------------------------------------------------------
-# STEP 2: ADNI Multimodal Benchmark (Table 2 Reproduction)
-# ----------------------------------------------------------
-echo ""
-echo "=========================================================="
-echo ">>> [2/3] ADNI Multimodal Training & Benchmark"
-echo "=========================================================="
-if [ ! -f "logs/adni_table2_results.csv" ]; then
-    $PYTHON -u run_adni_pipeline.py 2>&1 | tee logs/adni_train.log
-else
-    echo "ADNI Benchmark already done. (Found logs/adni_table2_results.csv)"
-fi
-
-echo ">>> [2/3] ADNI COMPLETED at $(date)"
+echo ">>> [2/2] BraTS 2018 Evaluation COMPLETED at $(date)"
 
 # ----------------------------------------------------------
 # STEP 3: Automatic VM Shutdown
