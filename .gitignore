@@ -52,5 +52,10 @@ env/
 # Data folders & temporary scratch files
 adni_flexmoe/
 adni_raw_flexmoe/
+kaggle_adni_run/
+DATADIC_*.csv
 scratch_*
+*.ipynb
+
+
 
