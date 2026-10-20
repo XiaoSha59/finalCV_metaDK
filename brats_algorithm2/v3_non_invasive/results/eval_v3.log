@@ -1,0 +1,25 @@
+Loading checkpoint: /home/XiaoSha/finalCV_metaDK/snapshots/BraTS18_phase2_v3_non_invasive/final.pth
+Loaded 57 images for evaluation.
+
+================================================================================
+EVALUATING DUALNET-V3 ACROSS ALL 15 INCOMPLETE MODALITY COMBINATIONS
+================================================================================
+[Flair only          ] Raw: ET=32.36% TC=52.07% WT=73.63% | Post: ET=32.57% TC=52.72% WT=73.83%
+[T1 only             ] Raw: ET=18.32% TC=30.09% WT=32.56% | Post: ET=18.39% TC=30.23% WT=32.62%
+[T1c only            ] Raw: ET=60.71% TC=65.09% WT=57.03% | Post: ET=61.34% TC=65.65% WT=57.14%
+[T2 only             ] Raw: ET=31.68% TC=49.15% WT=63.87% | Post: ET=32.04% TC=49.60% WT=64.02%
+[Fl+T1               ] Raw: ET=34.33% TC=55.30% WT=75.55% | Post: ET=34.57% TC=55.94% WT=75.72%
+[Fl+T1c              ] Raw: ET=67.47% TC=80.55% WT=85.18% | Post: ET=67.68% TC=80.98% WT=85.35%
+[Fl+T2               ] Raw: ET=37.66% TC=60.59% WT=81.66% | Post: ET=38.02% TC=61.42% WT=81.83%
+[T1+T1c              ] Raw: ET=62.69% TC=68.55% WT=56.27% | Post: ET=63.27% TC=69.16% WT=56.34%
+[T1+T2               ] Raw: ET=34.11% TC=54.30% WT=69.17% | Post: ET=34.43% TC=54.64% WT=69.33%
+[T1c+T2              ] Raw: ET=65.16% TC=78.73% WT=76.56% | Post: ET=65.53% TC=79.14% WT=76.74%
+[Fl+T1+T1c           ] Raw: ET=67.93% TC=80.55% WT=85.01% | Post: ET=68.22% TC=80.89% WT=85.16%
+[Fl+T1+T2            ] Raw: ET=38.94% TC=63.12% WT=81.94% | Post: ET=39.23% TC=63.63% WT=82.09%
+[Fl+T1c+T2           ] Raw: ET=67.17% TC=83.51% WT=87.39% | Post: ET=67.44% TC=83.76% WT=87.53%
+[T1+T1c+T2           ] Raw: ET=65.65% TC=78.23% WT=76.81% | Post: ET=65.97% TC=78.64% WT=76.94%
+[All (Fl+T1+T1c+T2)  ] Raw: ET=67.60% TC=83.06% WT=86.25% | Post: ET=67.95% TC=83.30% WT=86.39%
+
+Saved Raw Results to: /home/XiaoSha/finalCV_metaDK/brats_algorithm2/v3_non_invasive/results/v3_table1_raw.csv
+Saved Post-processed Results to: /home/XiaoSha/finalCV_metaDK/brats_algorithm2/v3_non_invasive/results/v3_table1_postproc.csv
+Benchmark Complete!
