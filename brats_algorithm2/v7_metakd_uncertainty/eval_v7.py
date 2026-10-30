@@ -20,7 +20,7 @@ for p in [CURRENT_DIR, ALG2_DIR, REPO_DIR, BRATS_DIR, osp.join(BRATS_DIR, "proce
         sys.path.insert(0, p)
 
 from v7_models.dual_net_v7 import DualNet_V7
-from v7_utils.postprocess_v7 import postprocess_prediction
+from v7_utils.postprocess_v7 import adaptive_postprocess_case
 
 try:
     from datasets.brats_dataset import BraTSEvalDataSet
@@ -113,20 +113,24 @@ def predict_sliding_eval(model, image, tile_size, classes, mode='0,1,2,3'):
     return total_predictions
 
 
-def evaluate_model(model, test_loader, tile_size, output_dir, postprocess=True):
+def evaluate_model(model, test_loader, tile_size, output_dir, test_dataset=None):
     os.makedirs(output_dir, exist_ok=True)
-    results = {}
+    results_raw = {}
+    results_pp = {}
 
-    print("\n" + "=" * 95)
-    print(f"| {'Modality Combination':<22} | {'ET Dice':>8} | {'TC Dice':>8} | {'WT Dice':>8} | {'Mean Dice':>10} | {'MetaKD Ref':>10} | {'Delta':>8} |")
-    print("=" * 95)
+    print("\n" + "=" * 125)
+    print(f"| {'Modality Combination':<20} | {'Raw ET':>7} {'Raw TC':>7} {'Raw WT':>7} {'Raw Mean':>9} | {'PP ET':>7} {'PP TC':>7} {'PP WT':>7} {'PP Mean':>9} | {'Ref Mean':>9} | {'PP Delta':>8} |")
+    print("=" * 125)
 
-    all_et, all_tc, all_wt, all_mean = [], [], [], []
+    all_raw_et, all_raw_tc, all_raw_wt, all_raw_mean = [], [], [], []
+    all_pp_et, all_pp_tc, all_pp_wt, all_pp_mean = [], [], [], []
 
     for mode, desc in MODES_15:
-        mode_et, mode_tc, mode_wt = [], [], []
+        has_t1ce = '2' in mode.split(',')
+        mode_raw_et, mode_raw_tc, mode_raw_wt = [], [], []
+        mode_pp_et, mode_pp_tc, mode_pp_wt = [], [], []
 
-        for batch in test_loader:
+        for index, batch in enumerate(test_loader):
             if isinstance(batch, (list, tuple)):
                 image, image_res, label, size, name, affine = batch
                 size = size[0].numpy()
@@ -136,6 +140,7 @@ def evaluate_model(model, test_loader, tile_size, output_dir, postprocess=True):
                 image = batch['image'].cuda().float()
                 gt_bin = (batch['label'][0].numpy() > 0.5).astype(np.uint8)
                 size = None
+                name = [f"case_{index}"]
 
             with torch.no_grad():
                 pred = predict_sliding_eval(model, image, tile_size, classes=3, mode=mode)
@@ -145,67 +150,86 @@ def evaluate_model(model, test_loader, tile_size, output_dir, postprocess=True):
             if size is not None:
                 pred_bin = pred_bin[:, :size[0], :size[1], :size[2]]
 
-            if postprocess:
-                pred_bin = postprocess_prediction(pred_bin)
+            # 1. Raw evaluation
+            d_raw_et = dice_eval(pred_bin[0], gt_bin[0])
+            d_raw_wt = dice_eval(pred_bin[1], gt_bin[1])
+            d_raw_tc = dice_eval(pred_bin[2], gt_bin[2])
 
-            d_et = dice_eval(pred_bin[0], gt_bin[0])
-            d_wt = dice_eval(pred_bin[1], gt_bin[1])
-            d_tc = dice_eval(pred_bin[2], gt_bin[2])
+            mode_raw_et.append(d_raw_et)
+            mode_raw_wt.append(d_raw_wt)
+            mode_raw_tc.append(d_raw_tc)
 
-            mode_et.append(d_et)
-            mode_wt.append(d_wt)
-            mode_tc.append(d_tc)
+            # 2. Standard Fair Post-processing (Topological containment + size filter 30)
+            cleaned_pred = adaptive_postprocess_case(pred_bin, min_speckle_size=30)
+            d_pp_et = dice_eval(cleaned_pred[0], gt_bin[0])
+            d_pp_wt = dice_eval(cleaned_pred[1], gt_bin[1])
+            d_pp_tc = dice_eval(cleaned_pred[2], gt_bin[2])
 
-        m_et = np.mean(mode_et)
-        m_tc = np.mean(mode_tc)
-        m_wt = np.mean(mode_wt)
-        m_avg = (m_et + m_tc + m_wt) / 3.0
+            mode_pp_et.append(d_pp_et)
+            mode_pp_wt.append(d_pp_wt)
+            mode_pp_tc.append(d_pp_tc)
+
+        m_raw_et = np.mean(mode_raw_et)
+        m_raw_tc = np.mean(mode_raw_tc)
+        m_raw_wt = np.mean(mode_raw_wt)
+        m_raw_avg = (m_raw_et + m_raw_tc + m_raw_wt) / 3.0
+
+        m_pp_et = np.mean(mode_pp_et)
+        m_pp_tc = np.mean(mode_pp_tc)
+        m_pp_wt = np.mean(mode_pp_wt)
+        m_pp_avg = (m_pp_et + m_pp_tc + m_pp_wt) / 3.0
 
         ref_et = PAPER_TABLE_1[mode]['ET']
         ref_tc = PAPER_TABLE_1[mode]['TC']
         ref_wt = PAPER_TABLE_1[mode]['WT']
         ref_avg = (ref_et + ref_tc + ref_wt) / 3.0
-        delta = m_avg - ref_avg
+        delta_pp = m_pp_avg - ref_avg
 
-        results[mode] = {
-            'desc': desc,
-            'ET': m_et,
-            'TC': m_tc,
-            'WT': m_wt,
-            'Mean': m_avg,
-            'Ref': ref_avg,
-            'Delta': delta
-        }
+        results_raw[mode] = {'desc': desc, 'ET': m_raw_et, 'TC': m_raw_tc, 'WT': m_raw_wt, 'Mean': m_raw_avg, 'Ref': ref_avg, 'Delta': m_raw_avg - ref_avg}
+        results_pp[mode] = {'desc': desc, 'ET': m_pp_et, 'TC': m_pp_tc, 'WT': m_pp_wt, 'Mean': m_pp_avg, 'Ref': ref_avg, 'Delta': delta_pp}
 
-        all_et.append(m_et)
-        all_tc.append(m_tc)
-        all_wt.append(m_wt)
-        all_mean.append(m_avg)
+        all_raw_et.append(m_raw_et)
+        all_raw_tc.append(m_raw_tc)
+        all_raw_wt.append(m_raw_wt)
+        all_raw_mean.append(m_raw_avg)
 
-        print(f"| {desc:<22} | {m_et:>8.2f} | {m_tc:>8.2f} | {m_wt:>8.2f} | {m_avg:>10.2f} | {ref_avg:>10.2f} | {delta:>+8.2f} |")
+        all_pp_et.append(m_pp_et)
+        all_pp_tc.append(m_pp_tc)
+        all_pp_wt.append(m_pp_wt)
+        all_pp_mean.append(m_pp_avg)
 
-    overall_et = np.mean(all_et)
-    overall_tc = np.mean(all_tc)
-    overall_wt = np.mean(all_wt)
-    overall_avg = np.mean(all_mean)
+        print(f"| {desc:<20} | {m_raw_et:>7.2f} {m_raw_tc:>7.2f} {m_raw_wt:>7.2f} {m_raw_avg:>9.2f} | {m_pp_et:>7.2f} {m_pp_tc:>7.2f} {m_pp_wt:>7.2f} {m_pp_avg:>9.2f} | {ref_avg:>9.2f} | {delta_pp:>+8.2f} |")
+
+    overall_raw_et, overall_raw_tc, overall_raw_wt, overall_raw_avg = np.mean(all_raw_et), np.mean(all_raw_tc), np.mean(all_raw_wt), np.mean(all_raw_mean)
+    overall_pp_et, overall_pp_tc, overall_pp_wt, overall_pp_avg = np.mean(all_pp_et), np.mean(all_pp_tc), np.mean(all_pp_wt), np.mean(all_pp_mean)
     overall_ref = 73.27
-    overall_delta = overall_avg - overall_ref
+    overall_pp_delta = overall_pp_avg - overall_ref
 
-    print("=" * 95)
-    print(f"| {'AVERAGE (15 MODES)':<22} | {overall_et:>8.2f} | {overall_tc:>8.2f} | {overall_wt:>8.2f} | {overall_avg:>10.2f} | {overall_ref:>10.2f} | {overall_delta:>+8.2f} |")
-    print("=" * 95 + "\n")
+    print("=" * 125)
+    print(f"| {'AVERAGE (15 MODES)':<20} | {overall_raw_et:>7.2f} {overall_raw_tc:>7.2f} {overall_raw_wt:>7.2f} {overall_raw_avg:>9.2f} | {overall_pp_et:>7.2f} {overall_pp_tc:>7.2f} {overall_pp_wt:>7.2f} {overall_pp_avg:>9.2f} | {overall_ref:>9.2f} | {overall_pp_delta:>+8.2f} |")
+    print("=" * 125 + "\n")
 
-    # Save to CSV
-    csv_path = osp.join(output_dir, "results_v7_table1.csv")
-    with open(csv_path, 'w', newline='') as f:
+    # Save Raw CSV
+    csv_raw = osp.join(output_dir, "results_v7_table1_raw.csv")
+    with open(csv_raw, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(['Mode', 'Description', 'ET_Dice', 'TC_Dice', 'WT_Dice', 'Mean_Dice', 'Ref_MetaKD', 'Delta'])
-        for mode, d in results.items():
+        for mode, d in results_raw.items():
             writer.writerow([mode, d['desc'], f"{d['ET']:.2f}", f"{d['TC']:.2f}", f"{d['WT']:.2f}", f"{d['Mean']:.2f}", f"{d['Ref']:.2f}", f"{d['Delta']:+.2f}"])
-        writer.writerow(['ALL', 'Average 15 Modes', f"{overall_et:.2f}", f"{overall_tc:.2f}", f"{overall_wt:.2f}", f"{overall_avg:.2f}", f"{overall_ref:.2f}", f"{overall_delta:+.2f}"])
+        writer.writerow(['ALL', 'Average 15 Modes', f"{overall_raw_et:.2f}", f"{overall_raw_tc:.2f}", f"{overall_raw_wt:.2f}", f"{overall_raw_avg:.2f}", f"{overall_ref:.2f}", f"{overall_raw_avg-overall_ref:+.2f}"])
 
-    print(f"Results saved to: {csv_path}")
-    return results
+    # Save Postprocessed CSV (both as results_v7_table1_standard_pp.csv and results_v7_table1.csv)
+    for fname in ["results_v7_table1_standard_pp.csv", "results_v7_table1.csv"]:
+        csv_pp = osp.join(output_dir, fname)
+        with open(csv_pp, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Mode', 'Description', 'ET_Dice', 'TC_Dice', 'WT_Dice', 'Mean_Dice', 'Ref_MetaKD', 'Delta'])
+            for mode, d in results_pp.items():
+                writer.writerow([mode, d['desc'], f"{d['ET']:.2f}", f"{d['TC']:.2f}", f"{d['WT']:.2f}", f"{d['Mean']:.2f}", f"{d['Ref']:.2f}", f"{d['Delta']:+.2f}"])
+            writer.writerow(['ALL', 'Average 15 Modes', f"{overall_pp_et:.2f}", f"{overall_pp_tc:.2f}", f"{overall_pp_wt:.2f}", f"{overall_pp_avg:.2f}", f"{overall_ref:.2f}", f"{overall_pp_delta:+.2f}"])
+
+    print(f"Results saved to: {output_dir}")
+    return results_pp
 
 
 def main():
@@ -233,7 +257,7 @@ def main():
     test_dataset = BraTSEvalDataSet(args.data_dir, args.test_list)
     test_loader = data.DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=2)
 
-    evaluate_model(model, test_loader, tile_size, args.output_dir, postprocess=not args.no_postprocess)
+    evaluate_model(model, test_loader, tile_size, args.output_dir, test_dataset=test_dataset)
 
 
 if __name__ == '__main__':
