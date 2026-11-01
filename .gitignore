@@ -30,6 +30,11 @@ audiovision/data/Audio_MNIST/
 audiovision/data/MNIST/
 
 # Cloud runner, Kaggle metadata, and one-off experiment scripts (local only)
+kaggle*/
+kernel-metadata.json
+*kaggle*.json
+*token*
+build_4mod_script.py
 metakd.service
 run_auto_train.sh
 auto_shutdown_watcher.sh
