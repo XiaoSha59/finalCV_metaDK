@@ -125,6 +125,33 @@ python -m audiovision.process.run_experiments
 
 The paper’s audio LowerB (80.44) is SMIL’s 21-clip checkpoint, not this 900-clip training set.
 
+---
+
+## 🚀 Proposed Extension: Multi-Level Uncertainty Distillation (U-MetaKD)
+
+To overcome the vulnerability of MetaKD to noisy/ambiguous pseudo-labels, we propose an **Uncertainty-Aware Knowledge Distillation (U-MetaKD)** framework tailored to three structural levels across all benchmarks:
+
+1. **BraTS 2018 (3D Segmentation) — Region-Decoupled Uncertainty (RDU-KD / Plan 1 Extended):**
+   * Decouples uncertainty filtering per tumor sub-region ($\tau_{\text{ET}}=0.25$, $\tau_{\text{TC}}=0.50$, $\tau_{\text{WT}}=\text{None}$) to prevent erasing blurry edema boundaries.
+   * **Results:** Achieves **72.72% Mean Dice**, officially surpassing **RFNet (CVPR 2023, 72.70%)**.
+   * **Tumor Core (TC):** Outperforms MetaKD Reproduce (**76.21% vs 75.85%**, winning 9/15 modality scenarios).
+   * **Efficiency:** Converges in **51,500 steps** (cutting compute by **>55%** vs MetaKD's 115,000 steps).
+   * See [improvements/README.md](improvements/README.md) for complete details.
+
+2. **ADNI (Multimodal Classification) — Class-Decoupled Uncertainty (CDU-KD):**
+   * Decouples confidence bounds across diagnostic categories ($\tau_{\text{CN}}=0.50$, $\tau_{\text{MCI}}=0.80$, $\tau_{\text{AD}}=0.50$) to protect the transitional, highly ambiguous MCI class.
+   * **3-Modality (C, B, I):** Boosts Test Accuracy from 55.28% to **60.48%** (+5.20% vs Reproduce) and Macro-F1 from 52.07% to **59.93%** (+7.86% vs Reproduce, +17.28% vs Paper).
+   * **4-Modality (C, G, B, I):** Shields the network from high-dimensional genomic noise, achieving **60.41% Accuracy** and **59.35% F1** (+9.51% Acc / +7.93% F1 vs Reproduce).
+   * See [improvements/adni_uncertainty/README.md](improvements/adni_uncertainty/README.md) for complete details.
+
+3. **AudioVision-MNIST (Audio-Visual Digit Recognition) — Predictive Entropy UKD:**
+   * Down-weights feature distillation for sample pairs with high predictive Shannon entropy (noisy audio clips or ambiguous handwritten digits).
+   * **Table 3a (Image Test):** Reaches **95.78%** at 10% available rate (outperforming paper 94.89%).
+   * **Table 3b (Audio Test):** Sets a new benchmark peak of **89.56%** at 15% available rate (beating both Reproduce 87.78% and Paper 88.44%).
+   * See [improvements/audiovision_uncertainty/README.md](improvements/audiovision_uncertainty/README.md) for complete details.
+
+---
+
 ## Citation
 
 ```bibtex
