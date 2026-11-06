@@ -14,9 +14,9 @@ Image + spoken-digit pairs used for MetaKD Table 3 ([arXiv:2405.07155](https://a
 ### Data Acquisition & Placement
 - **Images (MNIST)**: Downloaded automatically into `audiovision/data/MNIST/` via `torchvision.datasets.MNIST`.
 - **Audio (FSDD)**: Clone or download [Free Spoken Digit Dataset](https://github.com/Jakobovski/free-spoken-digit-dataset):
-  ```bash
-  git clone https://github.com/Jakobovski/free-spoken-digit-dataset.git
-  ```
+ ```bash
+ git clone https://github.com/Jakobovski/free-spoken-digit-dataset.git
+ ```
 
 Put the audio recordings under `audiovision/data/Audio_MNIST/sound/` (gitignored), grouped by digit `0-9`:
 

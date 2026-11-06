@@ -123,12 +123,12 @@ Best-validation weights from that run are in `adni/checkpoints/best_adni_model_s
 pip install -r requirements.txt
 
 python -m adni.process.run_pipeline \
-  --allow_generated_split \
-  --center_inputs \
-  --epochs 60 \
-  --batch_size 8 \
-  --seeds 0,1,2 \
-  --output_csv logs/adni_table2_results.csv
+ --allow_generated_split \
+ --center_inputs \
+ --epochs 60 \
+ --batch_size 8 \
+ --seeds 0,1,2 \
+ --output_csv logs/adni_table2_results.csv
 ```
 
 `--drop_g` is already on. `--no_class_weight` is already the default. CPU is enough for this MLP; a GPU only speeds the 60-epoch loop.
@@ -137,9 +137,9 @@ Sanity-check loaders and the frozen split without training:
 
 ```bash
 python -m adni.process.run_pipeline \
-  --allow_generated_split \
-  --center_inputs \
-  --dry_run
+ --allow_generated_split \
+ --center_inputs \
+ --dry_run
 ```
 
 Expect `C: 4439`, `B: 190`, `I: 187`, split `2063 / 442 / 442`.

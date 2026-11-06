@@ -41,6 +41,8 @@ def train_metakd_audiovision_ukd(
     device: str = None,
     seed: int = 42,
     verbose: bool = True,
+    save_ckpt: bool = True,
+    ckpt_name: str = None,
 ):
     if missing_modality in ("visual", "image"):
         missing_modality = "visual"
@@ -146,19 +148,21 @@ def train_metakd_audiovision_ukd(
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_test_acc = test_acc
-            ckpt_dir = os.path.join(REPO_DIR, "improvements", "audiovision_uncertainty", "checkpoints")
-            os.makedirs(ckpt_dir, exist_ok=True)
-            torch.save(
-                {
-                    "epoch": epoch,
-                    "model_state_dict": model.state_dict(),
-                    "val_acc": best_val_acc,
-                    "test_acc": best_test_acc,
-                    "missing_modality": missing_modality,
-                    "available_rate": available_rate,
-                },
-                os.path.join(ckpt_dir, f"ukd_{missing_modality}_rate_{int(available_rate*100)}pct.pth")
-            )
+            if save_ckpt:
+                ckpt_dir = os.path.join(REPO_DIR, "improvements", "audiovision_uncertainty", "checkpoints")
+                os.makedirs(ckpt_dir, exist_ok=True)
+                filename = ckpt_name or f"ukd_{missing_modality}_rate_{int(available_rate*100)}pct.pth"
+                torch.save(
+                    {
+                        "epoch": epoch,
+                        "model_state_dict": model.state_dict(),
+                        "val_acc": best_val_acc,
+                        "test_acc": best_test_acc,
+                        "missing_modality": missing_modality,
+                        "available_rate": available_rate,
+                    },
+                    os.path.join(ckpt_dir, filename)
+                )
 
         if verbose and (epoch % 10 == 0 or epoch == 1):
             w = model.kd_weights().detach().cpu().numpy()

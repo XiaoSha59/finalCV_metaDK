@@ -10,29 +10,29 @@ This document details the dataset, frozen split, preprocessing pipeline, bi-leve
 
 ```text
 brats/
-├── README.md                      # This comprehensive documentation
+├── README.md           # This comprehensive documentation
 ├── data/
-│   ├── dataset.py                 # BraTS 3D patch loader, z-score normalization, random modal drop
-│   ├── BraTS18_metaTrain.csv      # 199 cases (70% training split)
-│   ├── BraTS18_metaVal.csv        # 29 cases (10% meta-validation split)
-│   └── BraTS18_test.csv           # 57 cases (20% held-out test split)
+│  ├── dataset.py         # BraTS 3D patch loader, z-score normalization, random modal drop
+│  ├── BraTS18_metaTrain.csv   # 199 cases (70% training split)
+│  ├── BraTS18_metaVal.csv    # 29 cases (10% meta-validation split)
+│  └── BraTS18_test.csv      # 57 cases (20% held-out test split)
 ├── process/
-│   ├── train.py                   # Bi-level MetaKD training loop (Algorithm 1)
-│   ├── eval_all_modalities.py     # 15-modality evaluation with sliding-window & postprocess
-│   ├── run_2phase.sh              # Two-phase runner script (80k warmup + 115k MetaKD)
-│   ├── run_eval.sh                # 15-combination benchmark runner
-│   ├── models/
-│   │   ├── dual_net.py            # Dual-Net 3D U-Net backbone
-│   │   ├── dsn.py                 # Deeply supervised network branches
-│   │   └── resnet50.py            # Feature extractor backbones
-│   ├── losses/
-│   │   └── loss_dual.py           # Segmentation (Dice + BCE) and pairwise L1 KD loss
-│   └── utils/
-│       ├── custom_transforms.py   # 3D spatial data augmentations
-│       ├── metrics.py             # Dice coefficient & evaluation metrics
-│       ├── logger.py              # Training logger & progress trackers
-│       └── postprocess.py         # Author's post-processing (connected components + K-Means)
-└── checkpoints/                   # Phase 1 (80k) & Phase 2 (115k) snapshots (gitignored)
+│  ├── train.py          # Bi-level MetaKD training loop (Algorithm 1)
+│  ├── eval_all_modalities.py   # 15-modality evaluation with sliding-window & postprocess
+│  ├── run_2phase.sh       # Two-phase runner script (80k warmup + 115k MetaKD)
+│  ├── run_eval.sh        # 15-combination benchmark runner
+│  ├── models/
+│  │  ├── dual_net.py      # Dual-Net 3D U-Net backbone
+│  │  ├── dsn.py         # Deeply supervised network branches
+│  │  └── resnet50.py      # Feature extractor backbones
+│  ├── losses/
+│  │  └── loss_dual.py      # Segmentation (Dice + BCE) and pairwise L1 KD loss
+│  └── utils/
+│    ├── custom_transforms.py  # 3D spatial data augmentations
+│    ├── metrics.py       # Dice coefficient & evaluation metrics
+│    ├── logger.py       # Training logger & progress trackers
+│    └── postprocess.py     # Author's post-processing (connected components + K-Means)
+└── checkpoints/          # Phase 1 (80k) & Phase 2 (115k) snapshots (gitignored)
 ```
 
 ---
@@ -50,19 +50,19 @@ Place the uncompressed training folder at `brats/data/BraTS2018/` (gitignored). 
 ```text
 brats/data/BraTS2018/MICCAI_BraTS_2018_Data_Training/
 ├── HGG/
-│   ├── Brats18_2013_2_1/
-│   │   ├── Brats18_2013_2_1_flair.nii.gz
-│   │   ├── Brats18_2013_2_1_t1.nii.gz
-│   │   ├── Brats18_2013_2_1_t1ce.nii.gz
-│   │   ├── Brats18_2013_2_1_t2.nii.gz
-│   │   └── Brats18_2013_2_1_seg.nii.gz
-│   └── ... (210 HGG subjects)
+│  ├── Brats18_2013_2_1/
+│  │  ├── Brats18_2013_2_1_flair.nii.gz
+│  │  ├── Brats18_2013_2_1_t1.nii.gz
+│  │  ├── Brats18_2013_2_1_t1ce.nii.gz
+│  │  ├── Brats18_2013_2_1_t2.nii.gz
+│  │  └── Brats18_2013_2_1_seg.nii.gz
+│  └── ... (210 HGG subjects)
 └── LGG/
-    ├── Brats18_2013_0_1/
-    │   ├── Brats18_2013_0_1_flair.nii.gz
-    │   ├── Brats18_2013_0_1_t1.nii.gz
-    │   ├── ...
-    └── ... (75 LGG subjects)
+  ├── Brats18_2013_0_1/
+  │  ├── Brats18_2013_0_1_flair.nii.gz
+  │  ├── Brats18_2013_0_1_t1.nii.gz
+  │  ├── ...
+  └── ... (75 LGG subjects)
 ```
 
 ### Modalities (4 MRI sequences per patient)
@@ -102,11 +102,11 @@ Processing follows the official MetaKD 3D volumetric pipeline:
 
 1. **Non-Zero Bounding Box Cropping**: Removes uninformative zero-background margins around the skull.
 2. **Foreground Z-Score Normalization**: Each modality sequence is normalized independently over non-zero brain voxels:
-   `x_hat = (x - mu_fg) / sigma_fg`
+  `x_hat = (x - mu_fg) / sigma_fg`
 3. **Patch Extraction**: During training, sub-volumes of size **128 x 128 x 128** are randomly cropped from the volumes.
 4. **Data Augmentation**:
-   - Random flipping along axial, coronal, and sagittal planes (p = 0.5).
-   - Random spatial cropping centered on tumor foreground.
+  - Random flipping along axial, coronal, and sagittal planes (p = 0.5).
+  - Random spatial cropping centered on tumor foreground.
 5. **Missing-Modality Simulation**: During Phase 2 training (`--mode random`), 0 to 3 modalities are randomly masked (filled with zeros) per batch, forcing the model to learn robust shared representations.
 
 ---
@@ -123,17 +123,17 @@ MetaKD employs a dual-branch 3D architecture where:
 In each training step, optimization alternates between two stages:
 
 1. **Meta-Update of Importance-Weight Vector (IWV)**:
-   The importance-weight vector w* represents the relative information value of each modality. It is updated on the meta-validation set D_v using meta-gradients.
+  The importance-weight vector w* represents the relative information value of each modality. It is updated on the meta-validation set D_v using meta-gradients.
 2. **Network Parameter Update**:
-   Given fixed w*, the network parameters theta are trained on the training batch D_t via:
+  Given fixed w*, the network parameters theta are trained on the training batch D_t via:
 
-   ```text
-   L_total = L_seg + alpha * L_KD
-   L_seg   = L_Dice + L_BCE
-   L_KD    = sum_{i != j} (w_i* / w_j*) ||f_i - f_j||_1
-   ```
+  ```text
+  L_total = L_seg + alpha * L_KD
+  L_seg  = L_Dice + L_BCE
+  L_KD  = sum_{i != j} (w_i* / w_j*) ||f_i - f_j||_1
+  ```
 
-   with alpha = 0.1 (the `--alpha` default in `train.py`).
+  with alpha = 0.1 (the `--alpha` default in `train.py`).
 
 ### Two-Phase Training Schedule
 
@@ -158,8 +158,8 @@ Raw network predictions are refined prior to official scoring:
 ### Why ET Drops Without T1ce
 - **Biological Constraint**: Gadolinium contrast enhancement in T1ce is the sole modality that directly visualizes blood-brain barrier breakdown in high-grade gliomas.
 - **Observed Behavior**:
-  - In combinations **containing T1ce** (e.g., `T1c`, `Fl+T1c`, `All`): ET Dice is high (**75% – 80%**).
-  - In combinations **lacking T1ce** (e.g., `Fl`, `T1`, `T2`, `Fl+T2`): raw ET Dice drops to **~45% – 50%**.
+ - In combinations **containing T1ce** (e.g., `T1c`, `Fl+T1c`, `All`): ET Dice is high (**75% – 80%**).
+ - In combinations **lacking T1ce** (e.g., `Fl`, `T1`, `T2`, `Fl+T2`): raw ET Dice drops to **~45% – 50%**.
 - In training logs (`--mode random`), the logged validation ET is an unweighted average across random combinations (both with and without T1ce), naturally hovering around **50% – 58%**. Post-processing and per-combination evaluation in Table 1 reveal the true performance.
 
 ---
@@ -215,27 +215,27 @@ PyTorch with CUDA support (VRAM >= 16 GB) is required.
 ### Step 1: Phase 1 Warmup (80,000 steps)
 ```bash
 python brats/process/train.py \
-  --snapshot_dir brats/checkpoints/phase1_80k/ \
-  --num_steps 80000 \
-  --mode full \
-  --batch_size 2 \
-  --learning_rate 1e-2 \
-  --train_list brats/data/BraTS18_metaTrain.csv \
-  --val_list brats/data/BraTS18_metaVal.csv
+ --snapshot_dir brats/checkpoints/phase1_80k/ \
+ --num_steps 80000 \
+ --mode full \
+ --batch_size 2 \
+ --learning_rate 1e-2 \
+ --train_list brats/data/BraTS18_metaTrain.csv \
+ --val_list brats/data/BraTS18_metaVal.csv
 ```
 
 ### Step 2: Phase 2 MetaKD (80,000 → 115,000 steps)
 ```bash
 python brats/process/train.py \
-  --snapshot_dir brats/checkpoints/phase2_115k/ \
-  --reload_from_checkpoint True \
-  --reload_path brats/checkpoints/phase1_80k/final.pth \
-  --num_steps 115000 \
-  --mode random \
-  --batch_size 2 \
-  --learning_rate 1e-2 \
-  --train_list brats/data/BraTS18_metaTrain.csv \
-  --val_list brats/data/BraTS18_metaVal.csv
+ --snapshot_dir brats/checkpoints/phase2_115k/ \
+ --reload_from_checkpoint True \
+ --reload_path brats/checkpoints/phase1_80k/final.pth \
+ --num_steps 115000 \
+ --mode random \
+ --batch_size 2 \
+ --learning_rate 1e-2 \
+ --train_list brats/data/BraTS18_metaTrain.csv \
+ --val_list brats/data/BraTS18_metaVal.csv
 ```
 
 ### Step 3: 15-Modality Benchmark Evaluation (Table 1)
@@ -245,8 +245,8 @@ bash brats/process/run_eval.sh
 Or directly via Python:
 ```bash
 python brats/process/eval_all_modalities.py \
-  --restore_from brats/checkpoints/phase2_115k/final.pth \
-  --test_list brats/data/BraTS18_test.csv \
-  --output_csv logs/brats18_table1_results.csv
+ --restore_from brats/checkpoints/phase2_115k/final.pth \
+ --test_list brats/data/BraTS18_test.csv \
+ --output_csv logs/brats18_table1_results.csv
 ```
 The script evaluates all 15 combinations, generates both raw and post-processed Dice scores, and exports the comparison matrix directly into CSV format.

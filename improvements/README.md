@@ -1,10 +1,10 @@
-# Improvements: Plan 1 Extended — Class-Decoupled Uncertainty Knowledge Distillation (CDU-KD)
+# Proposed Method: Region-Decoupled Uncertainty Knowledge Distillation (RDU-KD)
 
-This directory contains the cleaned, self-contained, and production-grade implementation of **Plan 1 Extended**, our highest-performing proposal for multi-modal brain tumor segmentation under arbitrary missing modalities on the **MICCAI BraTS 2018** benchmark.
+This directory contains the implementation of **RDU-KD** (Region-Decoupled Uncertainty Knowledge Distillation), our proposed method for 3D multi-modal brain tumor segmentation under arbitrary missing modalities on the **MICCAI BraTS 2018** benchmark.
 
 ---
 
-## 🚀 Key Achievements
+## Key Achievements
 
 * **Benchmarking (CVPR 2023 Leaderboard):**
   * Achieved **72.72% Mean Dice** across all 15 possible combinations of missing modalities.
@@ -16,42 +16,35 @@ This directory contains the cleaned, self-contained, and production-grade implem
 
 ---
 
-## 🧠 Motivation & Method
+## Motivation & Method
 
-### The Problem in Standard MetaKD
-Standard MetaKD estimates predictive uncertainty globally across all segmentation channels:
-$$\mathcal{M}(x) = \exp\left(-\frac{\mathcal{H}(p_t(x))}{\tau}\right)$$
-This design imposes a severe dilemma:
-1. **Whole Tumor (WT / Edema)** has blurry, high-entropy boundaries. Applying global uncertainty filtering penalizes these boundaries and collapses WT accuracy.
-2. **Enhancing Tumor (ET)** is extremely small and sparse. If the threshold $\tau$ is set too stringently or uniformly, the student network is starved of ET gradients whenever T1ce is absent.
-
-### The Solution: Class-Decoupled Uncertainty KD (CDU-KD)
-CDU-KD completely decouples uncertainty modulation per anatomical region:
+Standard MetaKD estimates predictive uncertainty globally across all segmentation channels, which over-prunes diffuse peritumoral edema boundaries. **RDU-KD** decouples uncertainty gating per anatomical tumor compartment:
 $$\mathcal{M}_c(x) = \exp\left(-\frac{\mathcal{H}(p_{t,c}(x))}{\tau_c}\right), \quad c \in \{\text{ET}, \text{WT}, \text{TC}\}$$
-- **Channel 0 (ET):** Uses adaptive threshold $\tau_{\text{ET}} = 0.50 \to 0.25$ to open gradient channels for sparse enhancing regions.
-- **Channel 1 (WT):** Full preservation with $\tau_{\text{WT}} = \text{None}$ ($\mathcal{M}_{\text{WT}} = 1.0$), safeguarding 100% of the edema boundary.
-- **Channel 2 (TC):** Sharp boundary constraint with $\tau_{\text{TC}} = 0.50$.
+- **Enhancing Tumor (ET):** Uses relaxed threshold $\tau_{\text{ET}} = 0.25$ to preserve gradients for sparse enhancing regions.
+- **Whole Tumor (WT):** Full preservation with $\tau_{\text{WT}} = \text{None}$ ($\mathcal{M}_{\text{WT}} = 1.0$), safeguarding the diffuse edema boundary.
+- **Tumor Core (TC):** Bounded constraint with $\tau_{\text{TC}} = 0.50$.
+
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 improvements/
-├── README.md                          # Technical overview and reproduction documentation
-├── loss_cdukd.py                      # Core Class-Decoupled Uncertainty KD Loss
-├── postprocess.py                     # Official medical domain post-processing pipeline
-├── train_plan1_extended.py            # End-to-end training and fine-tuning script
-├── eval_plan1_extended.py             # 15-modality evaluation with sliding window inference
-├── run_train_pipeline.sh              # Unified automated shell pipeline
+├── README.md             # Technical overview and reproduction documentation
+├── loss_cdukd.py           # Core Class-Decoupled Uncertainty KD Loss
+├── postprocess.py           # Official medical domain post-processing pipeline
+├── train_plan1_extended.py      # End-to-end training and fine-tuning script
+├── eval_plan1_extended.py       # 15-modality evaluation with sliding window inference
+├── run_train_pipeline.sh       # Unified automated shell pipeline
 └── results/
-    ├── results_plan1_extended_72.72.csv   # Official 15-modality evaluation table
-    └── cvpr_benchmark_comparison.md      # Head-to-head leaderboard against SOTA methods
+  ├── results_plan1_extended_72.72.csv  # Official 15-modality evaluation table
+  └── cvpr_benchmark_comparison.md   # Head-to-head leaderboard against SOTA methods
 ```
 
 ---
 
-## 📊 Evaluation Results (15 Modality Combinations)
+## Evaluation Results (15 Modality Combinations)
 
 Extracted from [results_plan1_extended_72.72.csv](results/results_plan1_extended_72.72.csv):
 
@@ -76,48 +69,48 @@ Extracted from [results_plan1_extended_72.72.csv](results/results_plan1_extended
 
 ---
 
-## 🛠️ Reproduction & Usage
+## ️ Reproduction & Usage
 
 ### 1. Training from Scratch
 To run the full end-to-end 50,000 steps with CDU-KD:
 ```bash
 python improvements/train_plan1_extended.py \
-    --snapshot_dir ./snapshots/plan1_extended \
-    --data_dir ./data \
-    --train_list datalist/BraTS18/BraTS18_metaTrain.csv \
-    --val_list datalist/BraTS18/BraTS18_metaVal.csv \
-    --num_steps 50000 \
-    --phase1_steps 25000 \
-    --batch_size 2 \
-    --learning_rate 1e-2 \
-    --tau_et 0.50 \
-    --tau_tc 0.50 \
-    --tau_wt -1.0
+  --snapshot_dir ./snapshots/plan1_extended \
+  --data_dir ./data \
+  --train_list datalist/BraTS18/BraTS18_metaTrain.csv \
+  --val_list datalist/BraTS18/BraTS18_metaVal.csv \
+  --num_steps 50000 \
+  --phase1_steps 25000 \
+  --batch_size 2 \
+  --learning_rate 1e-2 \
+  --tau_et 0.50 \
+  --tau_tc 0.50 \
+  --tau_wt -1.0
 ```
 
 ### 2. Fast Fine-Tuning (ET Gradient Unblocking)
 To fine-tune 1,500 steps with $\tau_{\text{ET}} = 0.25$:
 ```bash
 python improvements/train_plan1_extended.py \
-    --snapshot_dir ./snapshots/plan1_extended_finetuned \
-    --reload_from_checkpoint \
-    --reload_path ./snapshots/plan1_extended/final.pth \
-    --reset_optimizer \
-    --start_iters 50000 \
-    --num_steps 51500 \
-    --learning_rate 1e-4 \
-    --tau_et 0.25 \
-    --tau_tc 0.50 \
-    --tau_wt -1.0
+  --snapshot_dir ./snapshots/plan1_extended_finetuned \
+  --reload_from_checkpoint \
+  --reload_path ./snapshots/plan1_extended/final.pth \
+  --reset_optimizer \
+  --start_iters 50000 \
+  --num_steps 51500 \
+  --learning_rate 1e-4 \
+  --tau_et 0.25 \
+  --tau_tc 0.50 \
+  --tau_wt -1.0
 ```
 
 ### 3. Comprehensive Evaluation
 To evaluate across all 15 modality configurations:
 ```bash
 python improvements/eval_plan1_extended.py \
-    --data_dir ./data \
-    --data_list datalist/BraTS18/BraTS18_test.csv \
-    --restore_from checkpoints/plan1_51.5k_finetuned.pth \
-    --output_csv improvements/results/results_eval.csv \
-    --postprocess true
+  --data_dir ./data \
+  --data_list datalist/BraTS18/BraTS18_test.csv \
+  --restore_from checkpoints/plan1_51.5k_finetuned.pth \
+  --output_csv improvements/results/results_eval.csv \
+  --postprocess true
 ```
