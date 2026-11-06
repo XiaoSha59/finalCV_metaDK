@@ -1,7 +1,7 @@
 # BraTS 2018 Missing Modality Benchmark Comparison
 ==================================================
 
-Official comparison between our proposed **Plan 1 Extended (CDU-KD)** and state-of-the-art baselines on the BraTS 2018 multi-modal segmentation benchmark (averaging across all 15 possible missing modality combinations).
+Official comparison between our proposed **RDU-KD (Region-Decoupled Uncertainty KD)** and state-of-the-art baselines on the BraTS 2018 multi-modal segmentation benchmark (averaging across all 15 possible missing modality combinations).
 
 ---
 
@@ -11,7 +11,7 @@ Official comparison between our proposed **Plan 1 Extended (CDU-KD)** and state-
 | :---: | :--- | :---: | :---: | :---: | :---: | :---: |
 | **#1** | **M^3AE (SOTA)** | CVPR 2023 | **60.10** | **77.20** | 85.80 | **74.37** |
 | **#2** | **MetaKD Reproduce (115k)** | arXiv:2405.07155 | 57.96 | 75.85 | **86.01** | **73.27** |
-| **#3** | **Plan 1 Extended (Ours)** | **Team finalCV_metaDK** | **56.94** | **76.21** | **85.00** | **72.72** |
+| **#3** | **RDU-KD (Ours)** | **Team finalCV_metaDK** | **56.94** | **76.21** | **85.00** | **72.72** |
 | **#4** | **RFNet** | CVPR 2023 Table Ref. | 56.60 | 76.00 | 85.50 | 72.70 |
 | **#5** | **SMU-Net** | Benchmark Baseline | 55.00 | 73.10 | 84.40 | 70.83 |
 | **#6** | **ACN** | Benchmark Baseline | 54.20 | 71.90 | 82.50 | 69.53 |
