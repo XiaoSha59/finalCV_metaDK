@@ -168,28 +168,31 @@ Raw network predictions are refined prior to official scoring:
 
 Evaluation follows a sliding-window approach over full volumes with patch size 128 x 128 x 128 and 1/3 overlap.
 
-### Ground Truth from MetaKD Paper Table 1 vs. Evaluation
+### Official Benchmark: MetaKD Reproduce vs. Paper Table 1
 
-| Combination | Modalities Present | Paper ET | Paper TC | Paper WT | Paper Avg |
-|:---:|:---|:---:|:---:|:---:|:---:|
-| `0` | FLAIR | 47.37 | 73.01 | 89.11 | 69.83 |
-| `1` | T1 | 44.94 | 67.16 | 77.47 | 63.19 |
-| `2` | T1ce | 76.22 | 81.98 | 77.72 | 78.64 |
-| `3` | T2 | 46.93 | 69.72 | 84.44 | 67.03 |
-| `0,1` | FLAIR + T1 | 49.64 | 75.66 | 90.23 | 71.84 |
-| `0,2` | FLAIR + T1ce | 77.49 | 84.82 | 90.30 | 84.20 |
-| `0,3` | FLAIR + T2 | 50.27 | 75.88 | 90.39 | 72.18 |
-| `1,2` | T1 + T1ce | 75.41 | 81.85 | 80.59 | 79.28 |
-| `1,3` | T1 + T2 | 49.77 | 74.40 | 87.05 | 70.41 |
-| `2,3` | T1ce + T2 | 78.24 | 84.84 | 86.18 | 83.09 |
-| `0,1,2` | FLAIR + T1 + T1ce | 77.66 | 85.36 | 90.70 | 84.57 |
-| `0,1,3` | FLAIR + T1 + T2 | 51.05 | 76.73 | 90.59 | 72.79 |
-| `0,2,3` | FLAIR + T1ce + T2 | 75.58 | 85.08 | 90.87 | 83.84 |
-| `1,2,3` | T1 + T1ce + T2 | 75.87 | 84.57 | 86.94 | 82.46 |
-| `0,1,2,3`| **All Modalities** | **79.74** | **86.20** | **90.92** | **85.62** |
-| **Mean** | **Overall 15-Combination Average** | **63.74** | **79.15** | **86.90** | **76.60** |
+| Combination | Modalities Present | MetaKD Repro (57 Test) | MetaKD Paper (66 CBICA) |
+|:---:|:---|:---:|:---:|
+| `0` | FLAIR | 64.57 | 69.83 |
+| `1` | T1 | 58.85 | 63.19 |
+| `2` | T1ce | 74.54 | 78.64 |
+| `3` | T2 | 62.18 | 67.03 |
+| `0,1` | FLAIR + T1 | 68.38 | 71.84 |
+| `0,2` | FLAIR + T1ce | 82.50 | 84.20 |
+| `0,3` | FLAIR + T2 | 67.05 | 72.18 |
+| `1,2` | T1 + T1ce | 77.24 | 79.28 |
+| `1,3` | T1 + T2 | 65.71 | 70.41 |
+| `2,3` | T1ce + T2 | 80.24 | 83.09 |
+| `0,1,2` | FLAIR + T1 + T1ce | 83.13 | 84.57 |
+| `0,1,3` | FLAIR + T1 + T2 | 68.35 | 72.79 |
+| `0,2,3` | FLAIR + T1ce + T2 | 82.74 | 83.84 |
+| `1,2,3` | T1 + T1ce + T2 | 80.63 | 82.46 |
+| `0,1,2,3`| **All Modalities** | **82.98** | **85.62** |
+| **Mean** | **Overall 15-Combination Average** | **73.27** | **76.60** |
+| **ET Mean** | Enhancing Tumor | **57.96** | **63.74** |
+| **TC Mean** | Tumor Core | **75.85** | **79.15** |
+| **WT Mean** | Whole Tumor | **86.01** | **86.90** |
 
-> **Note on Paper vs. Local Metrics**: The paper's Table 1 summary rows originate from the online CBICA evaluation server (66 unseen cases with unreleased ground truth). Evaluation in `brats/process/eval_all_modalities.py` is conducted on the official held-out local split (57 cases with ground truth), providing reproducible and transparent metrics.
+> **Note on Paper vs. Local Metrics**: The paper's Table 1 summary rows originate from the online CBICA evaluation server (66 unseen cases with unreleased ground truth). Evaluation in `brats/process/eval_all_modalities.py` is conducted on the official held-out local split (57 cases with ground truth), providing reproducible and transparent metrics. For our proposed Region-Decoupled Uncertainty extension (RDU-KD, 72.72% Mean / 76.21% TC in 51.5k steps), see [improvements/README.md](../improvements/README.md).
 
 ---
 

@@ -61,14 +61,17 @@ bash brats/process/run_2phase.sh  # 80k warmup -> 115k MetaKD random drop
 bash brats/process/run_eval.sh   # 15 combinations, raw + author postprocess CSVs
 ```
 
-Paper Table 1 reference performance (Dice %) across the 15 missing-MRI scenarios:
+Benchmark evaluation (Dice %) across the 15 missing-modality scenarios:
 
-| Setting | ET | TC | WT | Avg |
-|---|:---:|:---:|:---:|:---:|
-| All 4 modalities (`Fl+T1+T1c+T2`) | 79.74 | 86.20 | 90.92 | 85.62 |
-| 15-combo mean (Paper Table 1) | 63.74 | 79.15 | 86.90 | 76.60 |
+| Setting | MetaKD Repro (57 Test) | MetaKD Paper (66 CBICA) |
+|---|:---:|:---:|
+| All 4 modalities (`FLAIR + T1 + T1ce + T2`) | 82.98 | 85.62 |
+| Enhancing Tumor (ET) Mean | 57.96 | 63.74 |
+| Tumor Core (TC) Mean | 75.85 | 79.15 |
+| Whole Tumor (WT) Mean | 86.01 | 86.90 |
+| **15-Combination Overall Mean** | **73.27** | **76.60** |
 
-Paper Table 1 averages are from the **online** 66-case CBICA set after postprocess. Numbers from `brats/process/eval_all_modalities.py` evaluate the **local** 57-case held-out split (`brats/data/BraTS18_test.csv`). Output logs and CSV matrices are written to `logs/brats18_table1_results.csv`.
+Paper Table 1 averages are from the **online** 66-case CBICA set after postprocess. Numbers from `brats/process/eval_all_modalities.py` evaluate the **local** 57-case held-out split (`brats/data/BraTS18_test.csv`). Output logs and CSV matrices are written to `logs/brats18_table1_results.csv`. For our proposed Region-Decoupled Uncertainty extension (RDU-KD, 72.72% Mean / 76.21% TC in 51.5k steps), see Section "Proposed Extension" below and [improvements/README.md](improvements/README.md).
 
 ---
 
@@ -89,26 +92,26 @@ python -m adni.process.run_pipeline \
 
 Benchmark results across all 15 missing-modality combinations on the frozen test split (442 subjects, 3 seeds):
 
-| Scenario | Observed Modalities | Accuracy (%) | Macro-F1 (%) | Paper Acc | Paper F1 |
+| Scenario | Observed Modalities | MetaKD Repro Acc (%) | MetaKD Repro F1 (%) | Paper Acc (%) | Paper F1 (%) |
 |:---|:---|:---:|:---:|:---:|:---:|
-| C | Clinical only | 47.81 ± 1.20 | 45.00 ± 2.40 | 59.65 | 43.25 |
-| G | Genomic only | 41.86 ± 0.00 | 19.67 ± 0.00 | 77.32* | 47.32 |
-| B | Biospecimen only | 52.87 ± 2.68 | 52.87 ± 2.70 | 56.23 | 40.57 |
-| I | MRI only | 56.49 ± 0.28 | 55.52 ± 1.79 | 55.32 | 39.05 |
-| C, G | Clinical + Genomic | 47.51 ± 1.58 | 44.51 ± 2.91 | 61.35 | 42.36 |
-| C, B | Clinical + Biospecimen | 52.87 ± 0.75 | 51.45 ± 0.89 | 63.24 | 45.87 |
-| C, I | Clinical + MRI | 58.82 ± 0.96 | 57.42 ± 0.96 | 62.75 | 41.23 |
-| G, B | Genomic + Biospecimen | 51.66 ± 3.89 | 51.12 ± 4.62 | 63.76 | 38.63 |
-| G, I | Genomic + MRI | 57.54 ± 0.75 | 55.72 ± 1.95 | 64.87 | 44.21 |
-| B, I | Biospecimen + MRI | 58.97 ± 0.83 | 59.11 ± 1.61 | 57.56 | 39.54 |
-| C, G, B | Clinical + Genomic + Biospecimen | 52.79 ± 1.20 | 51.05 ± 1.70 | 60.35 | 42.11 |
-| C, G, I | Clinical + Genomic + MRI | 58.82 ± 0.85 | 57.03 ± 1.45 | 65.04 | 50.43 |
-| C, B, I | Clinical + Biospecimen + MRI | 60.26 ± 1.20 | 59.44 ± 2.23 | 63.06 | 42.65 |
-| G, B, I | Genomic + Biospecimen + MRI | 59.73 ± 1.12 | 59.22 ± 2.32 | 64.12 | 55.09 |
-| C, G, B, I | Full (All 4 Modalities) | 60.41 ± 1.21 | 59.35 ± 2.43 | 67.87 | 57.23 |
-| **Mean** | **Overall 15-Combination Average** | **54.56** | **51.90** | **62.83** | **44.64** |
+| C | Clinical only | 49.25 | 47.58 | 59.65 | 43.25 |
+| G | Genomic only | 33.71 | 26.39 | 77.32* | 47.32 |
+| B | Biospecimen only | 52.19 | 50.79 | 56.23 | 40.57 |
+| I | MRI only | 57.01 | 57.41 | 55.32 | 39.05 |
+| C, G | Clinical + Genomic | 48.42 | 46.99 | 61.35 | 42.36 |
+| C, B | Clinical + Biospecimen | 53.09 | 52.15 | 63.24 | 45.87 |
+| C, I | Clinical + MRI | 60.41 | 60.64 | 62.75 | 41.23 |
+| G, B | Genomic + Biospecimen | 45.55 | 44.72 | 63.76 | 38.63 |
+| G, I | Genomic + MRI | 50.68 | 52.04 | 64.87 | 44.21 |
+| B, I | Biospecimen + MRI | 60.03 | 60.67 | 57.56 | 39.54 |
+| C, G, B | Clinical + Genomic + Biospecimen | 52.19 | 50.98 | 60.35 | 42.11 |
+| C, G, I | Clinical + Genomic + MRI | 56.49 | 56.26 | 65.04 | 50.43 |
+| C, B, I | Clinical + Biospecimen + MRI | 61.54 | 62.03 | 63.06 | 42.65 |
+| G, B, I | Genomic + Biospecimen + MRI | 57.54 | 58.53 | 64.12 | 55.09 |
+| C, G, B, I | Full (All 4 Modalities) | 59.80 | 59.63 | 67.87 | 57.23 |
+| **Mean** | **Overall 15-Combination Average** | **53.19** | **52.45** | **62.83*** | **44.64** |
 
-*Note: Paper G-only (77.32%) reflects data leakage from unpruned diagnosis-onset variables. Our evaluation uses genuine raw SNPs (41.86% matching majority class baseline), where CDU-KD prevents genomic noise propagation to reach 59.35% F1 on full 4-modality input and 51.90% overall mean F1 (+7.26% over Paper 44.64%).*
+*Note: Paper G-only (77.32%) reflects data leakage from unpruned diagnosis-onset variables. Our reproduced baseline on raw SNPs obtains 33.71% Acc (26.39% F1). Across all 15 scenarios, MetaKD Reproduce achieves 53.19% Acc and 52.45% Macro-F1 (+7.81% F1 over Paper 44.64%). For our proposed Class-Decoupled Uncertainty extension (CDU-KD, achieving 54.56% Acc and protecting transitional MCI sensitivity up to 88.6%), see Section "Proposed Extension" below and [improvements/adni_uncertainty/README.md](improvements/adni_uncertainty/README.md).*
 
 Locked weights: `adni/checkpoints/best_adni_model_seed0.pth` (and `seed1`, `seed2`). Diagnosis-onset columns PTCOGBEG, PTADDX, and PTADBEG stay excluded, as in the paper.
 
