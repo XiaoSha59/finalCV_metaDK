@@ -6,16 +6,22 @@ This module implements **Uncertainty-Modulated Cross-Modal Distillation** for im
 
 ## 1. Motivation: Why Uncertainty on AudioVision?
 * **Problem in Standard MetaKD:**
- * Baseline MetaKD computes an unweighted L1 distance between visual and audio features:
-  $$L_{\text{KD}} = \left(\frac{w_v}{w_a} + \frac{w_a}{w_v}\right) \| f_v - f_a \|_1$$
- * Some audio clips suffer from background noise or ambient artifacts, and some MNIST digit strokes are ambiguous (e.g., a messy digit '7' that resembles '1').
- * Forcing the student to rigidly match the feature representations of ambiguous pairs pollutes cross-modal feature alignment.
-* **Solution in U-MetaKD:**
- * Compute the full-modality teacher's predictive Shannon entropy:
-  $$\mathcal{H}(p_T) = - \sum_{c=0}^9 p_{T,c} \log(p_{T,c} + \epsilon)$$
- * Modulate the cross-modal distillation by the confidence weight $u_k = \exp(-\mathcal{H}(p_{T,k}) / \tau)$.
- * High-confidence, clearly spoken/written digits receive $u_k \approx 1.0$, while noisy/garbled inputs are automatically down-weighted ($u_k \to 0$).
+  Baseline MetaKD computes an unweighted L1 distance between visual and audio features:
 
+  $$
+  L_{\text{KD}} = \left(\frac{w_v}{w_a} + \frac{w_a}{w_v}\right) \| f_v - f_a \|_1
+  $$
+
+  Some audio clips suffer from background noise or ambient artifacts, and some MNIST digit strokes are ambiguous (e.g., a messy digit '7' that resembles '1'). Forcing the student to rigidly match the feature representations of ambiguous pairs pollutes cross-modal feature alignment.
+
+* **Solution in U-MetaKD:**
+  Compute the full-modality teacher's predictive Shannon entropy:
+
+  $$
+  \mathcal{H}(p_T) = - \sum_{c=0}^9 p_{T,c} \log(p_{T,c} + \epsilon)
+  $$
+
+  Modulate the cross-modal distillation by the confidence weight $u_k = \exp(-\mathcal{H}(p_{T,k}) / \tau)$. High-confidence, clearly spoken/written digits receive $u_k \approx 1.0$, while noisy/garbled inputs are automatically down-weighted ($u_k \to 0$).
 ---
 
 ## 2. File Organization

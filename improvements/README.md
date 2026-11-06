@@ -19,7 +19,11 @@ This directory contains the implementation of **RDU-KD** (Region-Decoupled Uncer
 ## Motivation & Method
 
 Standard MetaKD estimates predictive uncertainty globally across all segmentation channels, which over-prunes diffuse peritumoral edema boundaries. **RDU-KD** decouples uncertainty gating per anatomical tumor compartment:
-$$\mathcal{M}_c(x) = \exp\left(-\frac{\mathcal{H}(p_{t,c}(x))}{\tau_c}\right), \quad c \in \{\text{ET}, \text{WT}, \text{TC}\}$$
+
+$$
+\mathcal{M}_c(x) = \exp\left(-\frac{\mathcal{H}(p_{t,c}(x))}{\tau_c}\right), \quad c \in \{\text{ET}, \text{WT}, \text{TC}\}
+$$
+
 - **Enhancing Tumor (ET):** Uses relaxed threshold $\tau_{\text{ET}} = 0.25$ to preserve gradients for sparse enhancing regions.
 - **Whole Tumor (WT):** Full preservation with $\tau_{\text{WT}} = \text{None}$ ($\mathcal{M}_{\text{WT}} = 1.0$), safeguarding the diffuse edema boundary.
 - **Tumor Core (TC):** Bounded constraint with $\tau_{\text{TC}} = 0.50$.

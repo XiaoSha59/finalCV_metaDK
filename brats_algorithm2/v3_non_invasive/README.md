@@ -9,12 +9,12 @@ DualNet-V3 resolves the two critical failure modes identified during previous ex
    - *Solution:* **Non-Invasive Auxiliary ShaSpec Head.** The main forward flow directly feeds pre-trained features into `shared_dec` with author's proven Mean-Imputation. ShaSpec heads operate exclusively in an auxiliary parallel branch to guide distillation loss, causing **zero feature distribution shift**.
 
 2. **Failure Mode 2 (Run 2 - Hard Masked KD Causing Background Blindness to 65.50%):**
-   - *Problem:* Distilling exclusively inside the binary tumor mask ($r\_mask$) zeroed out gradients on 97% healthy brain background. Without Teacher supervision on normal brain parenchyma, the Student generated massive false positives on contrast-poor modalities (e.g. T1 only dropped to 34%).
+   - *Problem:* Distilling exclusively inside the binary tumor mask (`r_mask`) zeroed out gradients on 97% healthy brain background. Without Teacher supervision on normal brain parenchyma, the Student generated massive false positives on contrast-poor modalities (e.g. T1 only dropped to 34%).
    - *Solution:* **Soft Region-Aware KD Loss.** Healthy brain background receives weight 1.0 (actively teaching Student to avoid false positives), while tumor sub-regions receive soft boosted gradient emphasis ($1.0 + 2.0 \times M_{\text{tumor}}$).
 
 3. **Loss Scale Normalization:**
    - $\lambda_{\text{kd}} = 0.1$ strictly aligns with author's `--alpha 0.1`.
-   - Spatial loss is normalized by total spatial weight $\times$ feature channels, guaranteeing numerically stable, bounded gradients.
+   - Spatial loss is normalized by total spatial weight times feature channels, guaranteeing numerically stable, bounded gradients.
 
 ---
 

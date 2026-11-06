@@ -216,7 +216,7 @@ Output: Optimized Student model Theta_S and region weight matrix W.
 To eliminate any risk of resource leaks, negative losses, numerical instabilities (`NaN`), or GPU compute waste, the implementation strictly enforces the following engineering protocols:
 
 ### A. Zero-NaN & Numerical Stability Guarantees
-1. **Safe Mask Division:** In 3D random patch cropping, sub-region masks ($M_{\text{ET}}, M_{\text{TC}}, M_{\text{WT}}$) can be empty ($M_r.\text{sum}() = 0$). Computing $\frac{\sum \text{diff} \cdot M_r}{\sum M_r}$ directly causes $0/0 = \text{NaN}$.
+1. **Safe Mask Division:** In 3D random patch cropping, sub-region masks ($M_{\text{ET}}, M_{\text{TC}}, M_{\text{WT}}$) can be empty ($\sum M_r = 0$). Computing $\frac{\sum (\text{diff} \cdot M_r)}{\sum M_r}$ directly causes $0/0 \to \text{NaN}$.
    * **Mandatory Guard:**
      ```python
      mask_sum = M_r.sum()
@@ -226,7 +226,7 @@ To eliminate any risk of resource leaks, negative losses, numerical instabilitie
          loss_kd_r = torch.tensor(0.0, device=diff.device)
      ```
 2. **Orthogonal Loss Boundedness (Non-negative & Finite):**
-   * Cosine similarity calculations must be protected with epsilon in denominators: $\frac{|\langle r, s \rangle|}{\|r\|_2 \cdot \|s\|_2 + 1e-7}$.
+   * Cosine similarity calculations must be protected with epsilon in denominators: $\frac{|\langle r, s \rangle|}{\|r\|_2 \cdot \|s\|_2 + \epsilon}$.
    * Values must be explicitly clamped within $[-1.0, 1.0]$ via `torch.clamp` before loss reduction to prevent numerical precision drift beyond the unit sphere. Loss is strictly non-negative ($\ge 0$).
 
 ### B. GPU VRAM & Memory Leak Prevention
