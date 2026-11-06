@@ -1,8 +1,8 @@
-# ADNI (clinical / biospecimen / imaging)
+# ADNI (Clinical, Genomic, Biospecimen, Imaging)
 
-CN / MCI / AD classification for MetaKD Table 2 ([arXiv:2405.07155](https://arxiv.org/abs/2405.07155)). Tabular loaders follow [UNITES-Lab/Flex-MoE](https://github.com/UNITES-Lab/Flex-MoE) (`clinical_preprocess.py`, `biospecimen_preprocess.py`, UCSFFSX7 branch of `data.py`, commit `2168807`). The official MetaKD repo ([billhhh/MetaKD](https://github.com/billhhh/MetaKD)) ships BraTS only, and neither paper releases `PTID_splits.json` or a genomic matrix, so this folder is the **C / B / I** run. Genomic is omitted on purpose (see below).
-
-This is not a full 15-row Table 2 reproduction.
+CN / MCI / AD 3-class staging benchmark for MetaKD Table 2 ([arXiv:2405.07155](https://arxiv.org/abs/2405.07155)). Tabular loaders follow [UNITES-Lab/Flex-MoE](https://github.com/UNITES-Lab/Flex-MoE). The repository supports both:
+1. **Full 4-Modality Benchmark (C, G, B, I)**: All 15 missing-modality scenarios across clinical, genomic, biospecimen, and MRI imaging features.
+2. **Clean 3-Modality Benchmark (C, B, I)**: 7 non-genomic scenarios with locked 3-seed checkpoints.
 
 ## Data
 

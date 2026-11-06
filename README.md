@@ -5,7 +5,7 @@ Reproduction of [Meta-Learned Modality-Weighted Knowledge Distillation](https://
 | Benchmark | Paper table | This repo |
 |---|---|---|
 | BraTS 2018 segmentation | Table 1 (15 missing-MRI combinations) | [brats/](brats/README.md) — two-phase 80k → 115k, last checkpoint, 15-combo eval |
-| ADNI CN / MCI / AD | Table 2 (C, G, B, I) | [adni/](adni/README.md) — **C / B / I only.** Genomic is omitted |
+| ADNI CN / MCI / AD | Table 2 (C, G, B, I) | [adni/](adni/README.md) — 4 modalities (C, G, B, I), all 15 combinations |
 | AudioVision-MNIST | Table 3 (missing audio / visual rates) | [audiovision/](audiovision/README.md) — held-out 900 / 150 / 450, locked checkpoints |
 
 The authors' code ([billhhh/MetaKD](https://github.com/billhhh/MetaKD)) is BraTS only. Classification follows Algorithm 1, Eq. 2 mean-fill, and Eq. 5 pairwise L1 KD with a learned importance-weight vector. Hyperparameters for ADNI and AudioVision come from the AudioVision supplement: Adam 1e-3, weight decay 1e-2, StepLR every 20 epochs x 0.9; IWV Adam 1e-2. BraTS follows the official `run.sh`: SGD, Nesterov 0.99, lr 1e-2, poly decay, 115k steps, no model selection.
@@ -72,7 +72,7 @@ Paper Table 1 averages are from the **online** 66-case CBICA set after postproce
 
 ---
 
-## ADNI (Table 2, C / B / I)
+## ADNI (Table 2: C, G, B, I)
 
 Full protocol, why G is dropped, and the clinical centering fix: **[adni/README.md](adni/README.md)**.
 
