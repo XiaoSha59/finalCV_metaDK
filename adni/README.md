@@ -83,7 +83,7 @@ We built that Flex-MoE genomic pipeline locally (five cohorts, liftOver, LD 50 5
 | MetaKD, G-only (official-style PLINK) | 26–34 |
 | Paper G | 77.32 |
 
-The intersection matrix also lacks the APOE tagging SNPs `rs429358` / `rs7412`. Extra iterations, PCA, or SMOTE-without-G do not create that signal. Genomic code is therefore **not** in this repository; `--drop_g` is the default. `--keep_g` exists only on machines that still have the local loader.
+The intersection matrix also lacks the APOE tagging SNPs `rs429358` / `rs7412`. Extra iterations, PCA, or SMOTE-without-G do not create that signal. For baseline MetaKD reproduction, `--drop_g` is the default to isolate clean tabular signals. To evaluate full 4-modality with genomic leakage analysis and CDU-KD across all 15 scenarios, see `prove_c_and_g_leakage.py` and `improvements/adni_uncertainty/`.
 
 ## Clinical (C)
 

@@ -56,5 +56,6 @@ python -m improvements.adni_uncertainty.train_adni_ukd --allow_generated_split -
 ### Full 4-Modality (C, G, B, I)
 * **Genomics (G)**: 41.86% (accurately reflects 40,956 raw SNPs without data leakage).
 * **Full Multi-modal (C, G, B, I)**: Test Acc **60.41%**, Macro-F1 **59.35%** (+2.12% vs Paper).
+* **Overall 15-Combo Mean**: Macro-F1 **51.90%** (+7.26% vs Paper MetaKD 44.64%), Test Acc **54.56%**.
 * U-MetaKD successfully shields the multi-modal network from genomic noise.
 

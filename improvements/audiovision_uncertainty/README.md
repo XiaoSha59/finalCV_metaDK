@@ -47,5 +47,5 @@ python -m improvements.audiovision_uncertainty.train_audiovision_ukd
 | **Table 3a (Image Test)** | 93.78% | 95.78% | 94.89% | 95.33% |
 | **Table 3b (Audio Test)** | 86.89% | 86.22% | **89.56%** | **88.67%** |
 
-* Note: Table 3b beats original Paper MetaKD at 15% rate (89.56% vs 88.44%).
+* Note: Single-seed Table 3b beats original Paper MetaKD at 15% rate (89.56% vs 88.44%). Multi-seed evaluation sets a peak 3-seed mean of 89.93% at 10% available rate.
 
