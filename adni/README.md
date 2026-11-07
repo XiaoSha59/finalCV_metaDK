@@ -129,7 +129,7 @@ Evaluation across all 15 combinations of the 4 modalities (Clinical, Genomic, Bi
 
 *Note: Genomic accuracy for Paper MetaKD (77.32%) reflects data leakage from unpruned diagnosis-onset variables. Our reproduced baseline on raw SNPs obtains 33.71% Acc (26.39% F1). Across all 15 scenarios, MetaKD Reproduce achieves 53.19% Acc and 52.45% Macro-F1 (+7.81% F1 over Paper 44.64%). For our proposed Class-Decoupled Uncertainty extension (CDU-KD, achieving 54.56% Acc and protecting transitional MCI sensitivity up to 88.6%), see [improvements/adni_uncertainty/README.md](../improvements/adni_uncertainty/README.md).*
 
-Best-validation weights for clean 3-modality setup are in `adni/checkpoints/best_adni_model_seed{0,1,2}.pth`.
+Best-validation weights: 3-modality baseline in `adni/checkpoints/reproduce_3mod/` (and root `adni/checkpoints/best_adni_model_seed{0,1,2}.pth`) and full 4-modality baseline in `adni/checkpoints/reproduce_4mod/best_adni_model_seed{0,1,2}.pth`.
 
 ## Reproduce
 

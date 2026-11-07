@@ -36,6 +36,7 @@ $$
 ```
 improvements/
 ├── README.md             # Technical overview and reproduction documentation
+├── checkpoints/          # Locked RDU-KD weights (plan1_51.5k_finetuned.pth, 72.72% Mean Dice)
 ├── loss_cdukd.py           # Core Class-Decoupled Uncertainty KD Loss
 ├── postprocess.py           # Official medical domain post-processing pipeline
 ├── train_plan1_extended.py      # End-to-end training and fine-tuning script
@@ -114,7 +115,7 @@ To evaluate across all 15 modality configurations:
 python improvements/eval_plan1_extended.py \
   --data_dir ./data \
   --data_list datalist/BraTS18/BraTS18_test.csv \
-  --restore_from checkpoints/plan1_51.5k_finetuned.pth \
+  --restore_from improvements/checkpoints/plan1_51.5k_finetuned.pth \
   --output_csv improvements/results/results_eval.csv \
   --postprocess true
 ```
